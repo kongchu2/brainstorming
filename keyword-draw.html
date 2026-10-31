@@ -1,0 +1,1276 @@
+<title>아이디어 공장</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<script>
+  // 저장된 테마를 그리기 전에 먼저 적용해 깜빡임을 막음
+  try { const t = JSON.parse(localStorage.getItem("kwdraw:theme")); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
+</script>
+<style>
+/* Layout: 왼쪽은 키워드를 넣는 '통'(한 통 또는 두 통), 오른쪽은 뽑힌 쪽지가 놓이는 '판'. 좁은 화면에선 위아래로 쌓임. */
+:root {
+  --paper: #EBEFF3;
+  --surface: #FFFFFF;
+  --ink: #141C27;
+  --muted: #5A6575;
+  --line: #CED6DF;
+  --accent: #2C47E8;
+  --accent-ink: #FFFFFF;
+  --mark: #F1B42F;
+  --mark-soft: #FCEBC2;
+  --twist-bg: #E9EDFF;
+  --danger: #C2372B;
+  --danger-ink: #FFFFFF;
+  /* 덱 구분 색: 저장한 덱 순서대로 */
+  --c0: #2C47E8; --c1: #D48A0C; --c2: #1F9D6B; --c3: #0E8FB8; --c4: #7A4DD8;
+  --chip-off: #DDE3EA;
+  --shadow: 0 1px 0 rgba(20,28,39,.06), 0 8px 24px -12px rgba(20,28,39,.25);
+
+  --f-display: "Do Hyeon", "IBM Plex Sans KR", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E131A; --surface: #171F2A; --ink: #E6ECF3; --muted: #93A0B2; --line: #2A3543;
+    --accent: #7E90FF; --accent-ink: #0E131A; --mark: #F3C04F; --mark-soft: #3A3018; --twist-bg: #1C2445; --chip-off: #222C39;
+    --danger: #FF7B6E; --danger-ink: #0E131A;
+    --c0: #7E90FF; --c1: #F3C04F; --c2: #4CC896; --c3: #5CC8E8; --c4: #B394FF;
+    --shadow: 0 1px 0 rgba(0,0,0,.3), 0 10px 28px -12px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E131A; --surface: #171F2A; --ink: #E6ECF3; --muted: #93A0B2; --line: #2A3543;
+  --accent: #7E90FF; --accent-ink: #0E131A; --mark: #F3C04F; --mark-soft: #3A3018; --twist-bg: #1C2445; --chip-off: #222C39;
+  --danger: #FF7B6E; --danger-ink: #0E131A;
+    --c0: #7E90FF; --c1: #F3C04F; --c2: #4CC896; --c3: #5CC8E8; --c4: #B394FF;
+  --shadow: 0 1px 0 rgba(0,0,0,.3), 0 10px 28px -12px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 24px; }
+
+header.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; }
+header.top h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(30px, 4.2vw, 40px); line-height: 1.1; margin: 0; letter-spacing: -.01em; text-wrap: balance; word-break: keep-all; }
+header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 / -1; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } .stage { order: -1; } }
+
+.label { font-size: 13px; font-weight: 600; color: var(--muted); }
+/* 구역 제목 (덱, 기록): 쪽지 단어와 같은 글꼴 */
+.sect { font-family: var(--f-display); font-weight: 400; font-size: 21px; line-height: 1; color: var(--ink); margin: 0; }
+
+/* 세그먼트 버튼 (통 개수, 기록 필터) */
+.seg { display: inline-flex; background: var(--chip-off); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: none; border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(20,28,39,.12); }
+
+/* ── 통 (입력) ── */
+.pools { display: grid; gap: 14px; min-width: 0; }
+.pools-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pool { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 12px; min-width: 0; }
+.pool-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pool-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pool-title .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dot, var(--accent)); flex: none; }
+.foot-right { display: flex; gap: 14px; margin-left: auto; }
+.toggle.mini { padding: 4px; border: 0; background: none; }
+.reset-zone { display: grid; gap: 8px; }
+.reset-btn {
+  height: 40px; border-radius: 10px; cursor: pointer; font-size: 13.5px; font-weight: 600;
+  border: 1px solid var(--danger); background: var(--surface); color: var(--danger);
+}
+.reset-btn:hover, .reset-btn[aria-expanded="true"] { background: var(--danger); color: var(--danger-ink); }
+.reset-panel { width: 100%; background: var(--surface); border: 1px solid var(--danger); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; }
+.reset-panel b { font-weight: 600; }
+.reset-desc { margin: 0; color: var(--muted); font-size: 13px; }
+.reset-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.danger { height: 40px; padding: 0 14px; border-radius: 10px; border: 0; background: var(--danger); color: var(--danger-ink); cursor: pointer; font-size: 13.5px; font-weight: 600; }
+.danger:disabled { opacity: .4; cursor: default; }
+.pool-fixed { font-family: var(--f-display); font-size: 20px; line-height: 1.2; color: var(--accent); }
+.pool-name {
+  font-family: var(--f-display); font-size: 20px; line-height: 1.2; width: 9ch; min-width: 0;
+  border: 0; border-bottom: 1.5px dashed var(--line); background: none; padding: 0 0 1px; border-radius: 0;
+}
+.pool-name:focus { border-bottom-color: var(--accent); outline: none; }
+.pool-head .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pool textarea {
+  width: 100%; min-height: 120px; resize: vertical;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; line-height: 1.6;
+}
+.pool textarea::placeholder { color: var(--muted); }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px; }
+.chip {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--line); background: var(--paper); border-radius: 999px;
+  font-size: 13.5px; transition: background .15s, opacity .15s;
+}
+.chip:hover { border-color: var(--muted); }
+.chip-label { border: 0; background: none; padding: 3px 3px 3px 11px; cursor: pointer; border-radius: 999px 0 0 999px; }
+.chip-x { border: 0; background: none; padding: 3px 9px 3px 4px; cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1; border-radius: 0 999px 999px 0; }
+.chip-x:hover { color: var(--danger); }
+.chip-add { display: flex; gap: 6px; }
+.add-input {
+  flex: 1; min-width: 0; background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 11px; font-size: 14px;
+}
+.add-input::placeholder { color: var(--muted); }
+.chip-add .mini-btn { padding: 0 12px; }
+
+
+/* 저장한 덱: 체크(이번에 쓸지) · 이름(눌러서 편집) · 장 수 */
+.decks { display: grid; gap: 12px; min-width: 0; }
+.decks-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.decks-note { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.deck-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.deck-row {
+  display: grid; gap: 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 12px 16px;
+}
+.deck-row.on { border-color: var(--dot); padding-bottom: 16px; }
+.deck-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px; }
+.deck-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.deck-name {
+  min-width: 0; width: 100%; max-width: 16ch; border: 0; border-bottom: 1.5px dashed transparent; border-radius: 0;
+  background: none; padding: 2px 0; font-size: 14.5px; font-weight: 600;
+}
+.deck-name:hover { border-bottom-color: var(--line); }
+.deck-name:focus { border-bottom-color: var(--dot); outline: none; }
+.deck-fold {
+  flex: none; align-self: center; width: 22px; height: 22px; margin-left: -6px; border: 0; background: none; color: var(--muted);
+  border-radius: 6px; cursor: pointer; font-size: 11px; line-height: 1; transition: transform .15s;
+}
+.deck-fold:hover { color: var(--ink); background: var(--paper); }
+.deck-fold[aria-expanded="false"] { transform: rotate(-90deg); }
+.deck-row.unused .deck-fold { visibility: hidden; }
+.deck-row.on.folded { padding-bottom: 12px; }
+.deck-title small { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.deck-edit { display: grid; gap: 12px; padding-right: 4px; }
+.deck-edit textarea {
+  width: 100%; min-height: 96px; resize: vertical;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; line-height: 1.6;
+}
+.deck-row.unused .deck-title, .deck-row.unused .deck-step { opacity: .5; }
+.decks-head .decks-note { min-width: 0; text-align: right; }
+.deck-body { display: grid; gap: 8px; }
+.deck-del { min-width: 26px; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 15px; line-height: 1; }
+.deck-del:hover { color: var(--danger); }
+.deck-del.armed { background: var(--danger); color: var(--danger-ink); font-size: 12px; font-weight: 600; padding: 5px 8px; }
+/* 덱 켜기/끄기 스위치: 켜지면 덱 색 */
+.deck-row .deck-use[aria-pressed="true"] .sw { background: var(--dot); }
+.deck-step { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; }
+.deck-step button { width: 28px; height: 28px; border: 0; background: none; cursor: pointer; font-size: 16px; border-radius: 7px; }
+.deck-step button:hover:not(:disabled) { background: var(--paper); }
+.deck-step button:disabled { opacity: .35; cursor: default; }
+.deck-step b { min-width: 2.6em; text-align: center; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.deck-add { justify-self: start; border: 1px dashed var(--line); background: none; color: var(--muted); border-radius: 10px; padding: 6px 12px; font-size: 13.5px; cursor: pointer; }
+.deck-add:hover { color: var(--ink); border-color: var(--muted); }
+.danger-link { color: var(--danger); }
+.danger-link:hover { color: var(--danger); }
+.pool-name { width: 14ch; }
+
+/* 새 덱 이름 입력 */
+.presets { display: grid; gap: 8px; min-width: 0; }
+.presets-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.presets-note { font-size: 12px; color: var(--muted); }
+.preset-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset { display: inline-flex; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; font-size: 13.5px; max-width: 100%; }
+.preset:hover { border-color: var(--muted); }
+.preset.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.preset-open { display: inline-flex; align-items: baseline; gap: 6px; border: 0; background: none; padding: 6px 12px; cursor: pointer; border-radius: 10px; min-width: 0; }
+.preset .preset-open:not(:last-child) { padding-right: 4px; border-radius: 10px 0 0 10px; }
+.preset-open .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preset.is-active .preset-open { font-weight: 600; cursor: default; }
+.preset small { font-size: 11px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.preset-x { border: 0; background: none; padding: 6px 10px 6px 4px; color: var(--muted); cursor: pointer; border-radius: 0 10px 10px 0; line-height: 1; }
+.preset-x:hover { color: var(--danger); }
+.preset-add { border: 1px dashed var(--line); background: none; color: var(--muted); border-radius: 10px; padding: 6px 12px; font-size: 13.5px; cursor: pointer; }
+.preset-add:hover { color: var(--ink); border-color: var(--muted); }
+.preset-new { display: flex; gap: 6px; }
+.preset-new .mini-btn { padding: 0 12px; }
+.chip .cnt { font-size: 10.5px; color: var(--muted); margin-left: 5px; font-variant-numeric: tabular-nums; }
+.chip.off { background: var(--chip-off); color: var(--muted); text-decoration: line-through; opacity: .7; }
+.chip.hit { background: var(--mark-soft); border-color: var(--mark); }
+.chips-empty { color: var(--muted); font-size: 13px; }
+.pool-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.linkbtn:hover { color: var(--ink); }
+.linkbtn:disabled { opacity: .4; cursor: default; }
+.example-tag { font-size: 11px; background: var(--mark-soft); color: var(--ink); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
+
+/* ── 판 (결과) ── */
+.stage { display: grid; gap: 16px; min-width: 0; container-type: inline-size; }
+/* 위쪽 한 줄: [뽑기] [이미 나온 조합 제외] ··· [결과 복사] [링크 공유] */
+.controls { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; }
+/* 오른쪽 열이 좁으면: 뽑기가 남는 폭을 채우고 복사·공유는 옆에, 토글은 다음 줄로 */
+@container (max-width: 600px) {
+  .controls { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px 8px; }
+  .controls .spacer { display: none; }
+  .controls #opt-unique { grid-row: 2; grid-column: 1 / -1; justify-self: start; }
+  .draw { justify-content: center; padding: 0 16px; }
+  .controls .ghost { padding: 0 12px; }
+}
+/* 휴대폰: 단축키 표시 숨김 */
+@media (max-width: 560px) { .draw kbd { display: none; } }
+/* 넓은 화면: 뽑기 줄 위쪽 끝을 첫 덱 카드 위쪽 끝에 맞춤 (왼쪽 '덱 N개' 줄 높이 + 간격만큼 내림) */
+@media (min-width: 821px) { .stage { padding-top: 33px; } }
+.steppers { display: flex; flex-wrap: wrap; gap: 8px; }
+.stepper { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.stepper button { width: 38px; height: 48px; border: 0; background: none; font-size: 20px; cursor: pointer; }
+.stepper button:hover:not(:disabled) { background: var(--paper); }
+.stepper button:disabled { opacity: .35; cursor: default; }
+.stepper .n { display: inline-flex; align-items: baseline; justify-content: center; gap: 2px; min-width: 72px; padding: 0 4px; white-space: nowrap; }
+.stepper .n b { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
+.stepper .n span { font-size: 14px; }
+.stepper .n .pre { color: var(--muted); max-width: 6em; overflow: hidden; text-overflow: ellipsis; margin-right: 4px; }
+/* 뽑기 버튼 (기록하기도 모양을 같이 쓰되 아래에서 테두리 버튼으로 낮춤) */
+.draw, .save-btn {
+  border-radius: 12px; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+  font-family: var(--f-display); letter-spacing: .01em; box-shadow: var(--shadow);
+  transition: transform .12s;
+}
+@media (hover: hover) {
+  .draw:hover:not(:disabled), .save-btn:hover { transform: translateY(-1px); }
+}
+.draw:active:not(:disabled), .save-btn:active { transform: translateY(1px); }
+.draw {
+  height: 50px; padding: 0 26px; border: 0; font-size: 21px;
+  display: inline-flex; align-items: center; gap: 10px;
+}
+.draw:disabled { opacity: .45; cursor: default; }
+.draw kbd { font-family: var(--f-body); font-size: 11px; font-variant-numeric: tabular-nums; opacity: .75; border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; }
+.controls .spacer { flex: 1; }
+.ghost { height: 40px; padding: 0 14px; white-space: nowrap; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-size: 13.5px; }
+.ghost:hover:not(:disabled) { border-color: var(--muted); }
+.ghost:disabled { opacity: .4; cursor: default; }
+
+.toggle {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 5px 13px 5px 6px; font-size: 13px;
+}
+.toggle .sw { width: 28px; height: 16px; border-radius: 999px; background: var(--chip-off); position: relative; transition: background .15s; flex: none; }
+.toggle .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .15s; }
+.toggle[aria-pressed="true"] .sw { background: var(--accent); }
+.toggle[aria-pressed="true"] .sw::after { left: 14px; }
+.toggle small { color: var(--muted); font-size: 12px; }
+#opt-unique { padding: 5px 6px 5px 13px; }   /* 글자 왼쪽, 스위치 오른쪽 (덱 카드 스위치와 같은 순서) */
+
+.slips { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+.slip {
+  position: relative; background-color: var(--surface); border: 1.5px solid var(--dot, var(--line)); border-radius: 6px;
+  min-height: 132px; padding: 16px 16px 12px; display: grid; grid-template-rows: auto 1fr auto; gap: 6px;
+  box-shadow: var(--shadow);
+  /* 쪽지 위쪽의 절취선 */
+  background-image: radial-gradient(circle at 6px 0, var(--paper) 3.5px, transparent 4px);
+  background-size: 14px 8px; background-repeat: repeat-x; background-position: 0 0;
+}
+.slip:nth-child(3n+1) { transform: rotate(-.6deg); }
+.slip:nth-child(3n+2) { transform: rotate(.5deg); }
+.slip.locked { border-color: var(--mark); box-shadow: 0 0 0 2px var(--mark-soft), var(--shadow); }
+.slip-x {
+  position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border: 0; border-radius: 7px;
+  background: none; color: var(--muted); cursor: pointer; font-size: 17px; line-height: 1;
+}
+.slip-x:hover { background: var(--paper); color: var(--ink); }
+.slip .meta { padding-right: 26px; }
+.slip .meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.slip .src { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slip .src::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--accent)); flex: none; }
+.slip.from-b .src::before { background: var(--mark); }
+.slip .word {
+  font-family: var(--f-display); font-size: clamp(30px, 3.4vw, 40px); line-height: 1.1;
+  align-self: center; overflow-wrap: anywhere; text-wrap: balance;
+}
+.slip.spinning .word { color: var(--muted); filter: blur(.4px); }
+.slip .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.slip .acts button { border: 1px solid var(--line); background: none; border-radius: 6px; padding: 2px 9px; font-size: 12px; cursor: pointer; color: var(--muted); }
+.slip .acts button:hover { color: var(--ink); border-color: var(--muted); }
+.slip.locked .acts .lock { background: var(--mark); border-color: var(--mark); color: #141C27; }
+.slip.landed { animation: land .35s cubic-bezier(.2,.9,.3,1.3); }
+@keyframes land { from { transform: translateY(-6px) scale(.97); } }
+
+.empty-stage { border: 1.5px dashed var(--line); border-radius: 12px; padding: 36px 20px; text-align: center; color: var(--muted); }
+.empty-stage b { display: block; font-family: var(--f-display); font-weight: 400; font-size: 24px; color: var(--ink); margin-bottom: 4px; }
+
+.combo { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; }
+.star-btn { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 3px 12px; font-size: 13px; cursor: pointer; color: var(--muted); }
+.star-btn:hover { border-color: var(--muted); color: var(--ink); }
+.star-btn[aria-pressed="true"] { background: var(--mark-soft); border-color: var(--mark); color: var(--ink); }
+.save-btn { height: 42px; margin-top: 4px; border: 1.5px solid var(--accent); border-radius: 10px; font-size: 17px; background: var(--surface); color: var(--accent); box-shadow: none; }
+.save-btn.saved { background: var(--twist-bg); color: var(--accent); box-shadow: none; }
+.combo-q-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.combo-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.combo-q { font-size: 16px; font-weight: 500; margin: 0; text-wrap: balance; min-width: 0; }
+.mini-btn { flex: none; border: 1px solid var(--line); background: none; border-radius: 6px; padding: 2px 9px; font-size: 12px; cursor: pointer; color: var(--muted); }
+.mini-btn:hover { color: var(--ink); border-color: var(--muted); }
+
+/* 메모: 줄 노트 느낌, 줄 간격 = line-height */
+.memo { display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 4px; }
+.memo-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.memo-state { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
+textarea#memo {
+  --lh: 26px;
+  width: 100%; min-height: calc(var(--lh) * 4 + 12px); resize: vertical;
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px;
+  line-height: var(--lh); font-size: 14.5px;
+  background-color: var(--paper);
+  background-image: linear-gradient(to bottom, transparent calc(var(--lh) - 1px), var(--line) calc(var(--lh) - 1px));
+  background-size: 100% var(--lh); background-position: 0 6px; background-attachment: local;
+}
+textarea#memo::placeholder { color: var(--muted); }
+
+.history { display: grid; gap: 8px; }
+.history-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.history-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.history ol { list-style: none; margin: 0; padding: 0; display: grid; }
+.history li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--line); }
+.history .h-open {
+  width: 100%; text-align: left; background: none; border: 0;
+  padding: 9px 2px; cursor: pointer; font-size: 13.5px; min-width: 0;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; row-gap: 2px; align-items: baseline;
+}
+.history .h-open:hover .words { color: var(--accent); }
+.history .t { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.history .words, .history .memo-preview { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history .memo-preview { grid-column: 2; color: var(--muted); font-size: 12.5px; }
+.history .memo-preview::before { content: "✎ "; color: var(--mark); }
+.history .h-star { background: none; border: 0; cursor: pointer; font-size: 18px; line-height: 1; padding: 6px 8px; color: var(--muted); }
+.history .h-star:hover { color: var(--ink); }
+.history .h-star[aria-pressed="true"] { color: var(--mark); }
+.history-empty { color: var(--muted); font-size: 13px; padding: 9px 2px; }
+.history .h-more { padding: 10px 2px; justify-self: start; }
+
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 8px 16px; border-radius: 8px; font-size: 13.5px; max-width: calc(100% - 32px); }
+
+/* 터치 화면: 작은 버튼의 누르는 영역을 키움 */
+@media (pointer: coarse) {
+  .chip-label { padding: 7px 4px 7px 12px; }
+  .chip-x { padding: 7px 12px 7px 6px; }
+  .slip .acts button, .mini-btn { padding: 6px 12px; }
+  .slip-x, .deck-del { min-width: 36px; height: 36px; }
+  .deck-step button { width: 36px; height: 36px; }
+  .deck-fold { width: 32px; height: 32px; }
+  .toggle.mini { padding: 10px 6px; }
+}
+.toast { display: flex; align-items: center; gap: 12px; }
+.toast button { border: 0; background: none; padding: 2px 0; color: var(--mark); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .slip.landed { animation: none; }
+  .draw, .save-btn, .chip, .toggle .sw, .toggle .sw::after { transition: none; }
+  .draw, .save-btn { transform: none !important; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>아이디어 공장</h1>
+    <div class="seg" id="theme-seg" role="group" aria-label="화면 테마">
+      <button type="button" data-theme-choice="system" aria-pressed="true">시스템</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">라이트</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">다크</button>
+    </div>
+    <p>떠오르는 키워드를 아무렇게나 적어 넣고, 몇 개만 무작위로 뽑아 엮어 보세요. 낯선 조합이 새 아이디어의 출발점이 됩니다.</p>
+  </header>
+
+  <div class="grid">
+    <div class="pools">
+      <div class="decks" aria-label="저장한 덱">
+        <div class="decks-head">
+          <h2 class="sect" id="decks-title">덱</h2>
+          <span class="decks-note" id="decks-note"></span>
+        </div>
+        <div class="deck-body" id="deck-body">
+        <ul class="deck-list" id="deck-list"></ul>
+        <button class="deck-add" id="deck-add" type="button">+ 새 덱</button>
+        </div>
+      </div>
+
+      <div class="reset-zone">
+        <button class="reset-btn" id="reset-open" type="button" aria-expanded="false" aria-controls="reset-panel">↺ 처음 상태로 초기화</button>
+        <div class="reset-panel" id="reset-panel" hidden>
+          <b>처음 상태로 되돌릴까요?</b>
+          <p class="reset-desc">저장한 덱, 뽑을 장 수·토글 설정, 지금 화면의 조합과 메모, 주소에 담긴 공유 내용이 지워져요. 지난 뽑기 기록과 테마는 남아요.</p>
+          <div class="reset-actions">
+            <button class="danger" id="reset-go" type="button">초기화</button>
+            <button class="ghost" id="reset-cancel" type="button">취소</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section class="stage" aria-label="뽑기 결과">
+      <div class="controls">
+        <button class="draw" id="draw" type="button">뽑기 <kbd id="draw-key">Cmd+Enter</kbd></button>
+        <button class="toggle" id="opt-unique" type="button" aria-pressed="true">이미 나온 조합 제외<span class="sw"></span></button>
+        <span class="spacer"></span>
+        <button class="ghost" id="copy" type="button" disabled>결과 복사</button>
+        <button class="ghost" id="share" type="button">링크 공유</button>
+      </div>
+
+      <div class="slips" id="slips" aria-live="polite"></div>
+      <div class="empty-stage" id="empty-stage" hidden><b>아직 뽑은 쪽지가 없어요</b>왼쪽에서 뽑을 덱을 켜고 ‘뽑기’를 누르세요.</div>
+
+      <div class="combo" id="combo" hidden>
+        <div class="combo-q-row">
+          <p class="combo-q" id="combo-q"></p>
+          <span class="combo-actions">
+            <button class="mini-btn" id="q-reroll" type="button" title="질문만 다시 뽑아요">이것만 다시</button>
+            <button class="star-btn" id="star" type="button" aria-pressed="false">☆ 후보로 표시</button>
+          </span>
+        </div>
+        <div class="memo">
+          <div class="memo-head">
+            <label class="label" for="memo">메모</label>
+            <span class="memo-state" id="memo-state" aria-live="polite"></span>
+          </div>
+          <textarea id="memo" placeholder="이 조합에서 떠오른 생각을 적어 두세요. 메모를 남긴 조합은 기록에도 남아요."></textarea>
+        </div>
+        <button class="save-btn" id="save-entry" type="button">기록하기</button>
+      </div>
+
+      <div class="history" id="history" hidden>
+        <div class="history-head">
+          <h2 class="sect">기록</h2>
+          <span class="history-tools">
+            <span class="seg" id="filter-seg" role="group" aria-label="기록 거르기">
+              <button type="button" data-filter="all" aria-pressed="true">전체</button>
+              <button type="button" data-filter="memo" aria-pressed="false">메모</button>
+              <button type="button" data-filter="star" aria-pressed="false">★ 후보</button>
+            </span>
+            <button class="linkbtn" id="copy-list" type="button">기록 복사</button>
+            <button class="linkbtn" id="history-clear-open" type="button" aria-expanded="false" aria-controls="history-clear-panel">기록 삭제</button>
+          </span>
+        </div>
+        <div class="reset-panel" id="history-clear-panel" hidden>
+          <b>지난 뽑기 기록을 모두 지울까요?</b>
+          <p class="reset-desc" id="history-clear-note"></p>
+          <div class="reset-actions">
+            <button class="danger" id="history-clear-go" type="button">기록 삭제</button>
+            <button class="ghost" id="history-clear-cancel" type="button">취소</button>
+          </div>
+        </div>
+        <ol id="history-list"></ol>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const SAMPLE_A = "커피, 우주, 도서관, 고양이, 비 오는 날, 지하철, 편지, 레트로 게임\n식물 키우기, 할머니 레시피, 야간 버스, 타이머, 지도, 소음, 퍼즐\n중고 거래, 사진관, 수면, 도시 산책, 손글씨";
+  const SAMPLE_B = "구독 서비스, 지도 앱, 보드게임, 팝업 스토어, 라디오, 우편, 챗봇\n동호회, DIY 키트, 알림 한 줄, 동네 축제, 대여점, 오디오 가이드, 스티커";
+  const TWISTS = [
+    "반대로 뒤집기", "100배 크게", "주머니 크기로 작게", "아이를 위해", "어르신을 위해",
+    "1분 안에 끝나게", "오프라인으로만", "돈을 받지 않고", "구독으로 바꾸기", "게임처럼",
+    "혼자 말고 여럿이", "밤에만 열리는", "10년 뒤의 버전", "100년 전에 있었다면", "소리로만 전달",
+    "하나를 빼 보기", "다른 업계에서 빌려오기", "실패해도 괜찮게", "가장 비싸게", "가장 싸게",
+    "동네 한 곳만을 위해", "매일의 의식으로", "선물하는 형태로", "규칙 하나만 남기기",
+  ];
+  const PROMPTS = [
+    "이 조합이 해결할 수 있는 불편함은 무엇일까요?",
+    "이 키워드들로 짧은 이야기의 첫 줄을 써 보세요.",
+    "이 조합을 좋아할 사람은 누구이고, 언제 쓸까요?",
+    "이 키워드로 주말 프로젝트를 만든다면 무엇을 만들까요?",
+  ];
+  const $ = id => document.getElementById(id);
+  const slipsEl = $("slips"), memoEl = $("memo");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem("kwdraw:" + k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem("kwdraw:" + k, JSON.stringify(v)); } catch {} },
+  };
+  // 배포된 페이지에서만 주소 공유. 다른 페이지 안에 끼워진 경우(미리보기 등)에는 끔
+  const framed = (() => { try { return window.self !== window.top; } catch { return true; } })();
+  const stamp = () => {
+    const t = new Date(), p = v => String(v).padStart(2, "0");
+    return `${p(t.getMonth() + 1)}.${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}`;
+  };
+  function rand(max) {
+    const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % max;
+  }
+  const newId = () => Date.now().toString(36) + rand(1e6).toString(36);
+  const splitRaw = s => (s ?? "").split(/[,\n;，、]+/).map(raw => raw.trim().replace(/^[#\-*•·]+\s*/, "")).filter(Boolean);
+  const uniq = list => {
+    const seen = new Set();
+    return list.filter(w => { const k = w.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  };
+
+  // ── 덱 ──
+  // 저장한 덱: [{id, name, text, excluded, use, n}]. use는 이번 뽑기에 쓸지, n은 그 덱에서 몇 장 뽑을지
+  let decks = store.get("decks");
+  if (!Array.isArray(decks)) decks = migrateDecks();
+  // 관점 카드는 이제 보통 덱 하나(id "t"). 예전에 따로 저장하던 관점 카드는 덱 목록 끝으로 옮김
+  {
+    const old = store.get("twistDeck");
+    if (old && !decks.some(d => d.id === "t"))
+      decks.push({ id: "t", name: "관점", text: old.text ?? "", excluded: old.excluded ?? [], use: store.get("twistOn") ?? true, n: 1, fold: !!old.fold });
+    try { localStorage.removeItem("kwdraw:twistDeck"); localStorage.removeItem("kwdraw:twistOn"); } catch {}
+  }
+  for (const d of decks) { d.excluded ??= []; d.n = Math.max(1, d.n | 0); }
+  let armedDel = null, armTimer;   // 목록의 × : 한 번 누르면 '삭제'로 바뀌고 3초 안에 한 번 더 눌러야 지워짐
+
+  // 예전 저장값(덱 A·B, 관점 카드, 저장한 세트)을 덱 목록으로 옮김. 처음 방문이면 예시 덱 세 개
+  function migrateDecks() {
+    const out = [];
+    const add = (name, text, excluded, use, n) => {
+      if (text == null || out.some(d => d.text === text)) return;
+      out.push({ id: newId(), name, text, excluded: excluded ?? [], use, n });
+    };
+    // 처음 방문(예전 저장값 없음)이면 키워드·방식·관점 덱을 모두 켜고 한 장씩
+    const fresh = store.get("input") == null, dual = fresh || store.get("mode") === "dual";
+    add(store.get("nameA") || "키워드", store.get("input") ?? SAMPLE_A, store.get("excluded"), true, fresh ? 1 : dual ? (store.get("nA") ?? 1) : (store.get("n") ?? 2));
+    add(store.get("nameB") || "방식", store.get("inputB") ?? SAMPLE_B, store.get("excludedB"), dual, store.get("nB") ?? 1);
+    for (const pr of store.get("presets") ?? []) {
+      add(pr.name, pr.a, pr.exA, false, 1);
+      if (pr.mode === "dual") add(`${pr.name} · ${pr.nameB || "방식"}`, pr.b, pr.exB, false, 1);
+    }
+    out.push({ id: "t", name: "관점", text: store.get("inputT") ?? TWISTS.join(", "), excluded: store.get("excludedT") ?? [], use: store.get("twistOn") ?? true, n: 1 });
+    return out;
+  }
+
+  let skipSeen = store.get("skipSeen") ?? true;     // 이미 나온 조합 제외
+  let current = [];        // [{word, from: 덱 id, locked}]
+  let history = store.get("history") ?? [];
+  for (const h of history) h.id ??= newId();
+  const isSaved = e => !!e && history.some(h => h.id === e.id);
+  // 기록하기를 안 눌렀어도 메모나 ★를 단 조합은 버리지 않고 기록으로 넘김
+  const keepIfNoted = () => { if (entry && !isSaved(entry) && !entry.dropped && (entry.memo || entry.star)) history.unshift(entry); };
+  let spinning = false;
+  // 지금 화면의 조합. 메모·별표는 여기에 붙고, 기록(history)에는 다음 뽑기 때 넘어감
+  let entry = null;
+  let filter = "all";
+  let showAll = false;   // 전체 필터에서 12개 넘는 기록 펼치기
+  const prune = () => { let plain = 0; history = history.filter(h => h.memo || h.star || ++plain <= 30); };
+  const saveHistory = () => { store.set("history", history); store.set("current", entry); };
+  const saveDecks = () => store.set("decks", decks);
+
+  const getDeck = id => decks.find(d => d.id === id);
+  const deckWords = d => d ? uniq(splitRaw(d.text)) : [];
+  const usable = d => { const ex = new Set(d?.excluded ?? []); return deckWords(d).filter(w => !ex.has(w)); };
+  const drawDecks = () => decks.filter(d => d.use && usable(d).length);
+  const want = d => Math.min(Math.max(1, d.n), usable(d).length);
+  const deckColor = id => { const i = decks.findIndex(d => d.id === id); return `var(--c${Math.max(0, i) % 5})`; };
+  const deckName = id => getDeck(id)?.name ?? "지운 덱";
+  const findDeckOf = word => decks.find(d => deckWords(d).includes(word))?.id ?? null;
+  // 예전 기록의 관점 카드(twist)는 관점 덱(id "t")에서 뽑은 키워드 한 장으로 바꿈
+  function absorbTwist(h) {
+    if (!h) return;
+    if (h.twist) { h.words = [...h.words, h.twist]; if (h.decks) h.decks = [...h.decks, "t"]; }
+    delete h.twist;
+  }
+  history.forEach(absorbTwist);
+
+  // 덱 내용은 text가 원본. 칩 추가·삭제도 text를 고쳐서 저장함
+  function setWords(d, list) { d.text = list.join(", "); saveDecks(); }
+  function addWords(d, raw) {
+    const words = deckWords(d), have = new Set(words.map(w => w.toLowerCase()));
+    const fresh = uniq(splitRaw(raw)).filter(w => !have.has(w.toLowerCase()));
+    if (fresh.length) setWords(d, [...words, ...fresh]);
+    return fresh.length;
+  }
+  function removeWord(d, w) {
+    d.excluded = d.excluded.filter(x => x !== w);
+    setWords(d, deckWords(d).filter(x => x !== w));
+  }
+
+  // 칩 ×·Backspace로 지운 키워드는 알림의 '되돌리기'로 살림
+  function removeWithUndo(d, w) {
+    const before = { text: d.text, excluded: [...d.excluded] };
+    removeWord(d, w); renderAll();
+    toast(`‘${w}’를 뺐어요`, () => { d.text = before.text; d.excluded = before.excluded; saveDecks(); renderAll(); });
+  }
+
+  const pickOne = list => list.length ? list[rand(list.length)] : undefined;
+
+  // ── 공유 링크 ──
+  // ?dn=덱 이름&dw=키워드,키워드&dc=장 수 (덱마다 반복) &d=뽑힌 키워드&m=메모 (예전 링크의 t=관점 카드도 읽음)
+  const params = new URLSearchParams(location.search);
+  const csv = s => (s ?? "").split(",").map(x => x.trim()).filter(Boolean);
+  let shared = [];
+  if (params.getAll("dw").length) {
+    const names = params.getAll("dn"), counts_ = params.getAll("dc");
+    shared = params.getAll("dw").map((w, i) => ({ name: names[i] || `덱 ${i + 1}`, words: csv(w), n: parseInt(counts_[i], 10) || 1 }));
+  } else if (params.get("k")) {   // 예전 형식 링크
+    shared.push({ name: params.get("na") || "키워드", words: csv(params.get("k")), n: parseInt(params.get("n"), 10) || 2 });
+    if (params.get("p") === "2" && params.get("k2")) shared.push({ name: params.get("nb") || "방식", words: csv(params.get("k2")), n: parseInt(params.get("n2"), 10) || 1 });
+  }
+  shared = shared.filter(s => s.words.length);
+  if (shared.length) {
+    // 같은 덱이 있으면 그 덱을 쓰고, 없으면 새 덱으로 추가. 내 덱은 덮지 않음
+    decks.forEach(d => d.use = false);
+    const ids = shared.map(s => {
+      const text = s.words.join(", ");
+      // text 원문은 줄바꿈·띄어쓰기가 다를 수 있으니(예시 덱은 줄바꿈 포함) 키워드 목록으로 비교
+      const key = s.words.join("\n");
+      let d = decks.find(x => deckWords(x).join("\n") === key);
+      if (!d) {
+        const name = decks.some(x => x.name === s.name) ? `${s.name} (공유)` : s.name;
+        d = { id: newId(), name, text, excluded: [], use: true, n: s.n };
+        decks.push(d);
+      }
+      d.use = true; d.n = s.n;
+      return d.id;
+    });
+    current = [...csv(params.get("d")), ...csv(params.get("d2"))]
+      .map(word => { const id = ids.find(x => deckWords(getDeck(x)).includes(word)); return id ? { word, from: id, locked: false } : null; })
+      .filter(Boolean);
+    const t = params.get("t"), td = t && (getDeck("t") && deckWords(getDeck("t")).includes(t) ? getDeck("t") : decks.find(d => deckWords(d).includes(t)));
+    if (td) { if (!td.use) { td.use = true; td.n = 1; } current.push({ word: t, from: td.id, locked: false }); }
+    saveDecks();
+  }
+
+  function shareUrl() {
+    const used = decks.filter(d => d.use && deckWords(d).length);
+    if (!used.length) return location.pathname;
+    const enc = encodeURIComponent, list = l => l.map(enc).join(",");
+    const q = [];
+    for (const d of used) q.push(`dn=${enc(d.name)}`, `dw=${list(deckWords(d))}`, `dc=${d.n}`);
+    if (current.length) q.push(`d=${list(current.map(c => c.word))}`);
+    if (current.length && entry?.memo) q.push(`m=${enc(entry.memo)}`);
+    return location.pathname + "?" + q.join("&");
+  }
+  function syncUrl() {
+    if (spinning || framed) return;
+    try { window.history.replaceState(null, "", shareUrl()); } catch {}
+  }
+
+  // ── 렌더링 ──
+  // 덱 카드: 이름·장 수·켜기·삭제 줄, 켠 덱은 그 아래에 키워드 편집까지 펼쳐 보임
+  const bulkOpen = new Set();   // 한꺼번에 편집 칸을 펼친 덱
+  function renderDecks() {
+    const list = $("deck-list");
+    // 다시 그린 뒤에도 키보드 초점과 입력 위치 유지
+    const act = document.activeElement, fk = act?.dataset?.fk;
+    const caret = fk && typeof act.selectionStart === "number" ? act.selectionStart : null;
+    list.replaceChildren(...decks.map(deckCard));
+    if (fk) {
+      const el = list.querySelector(`[data-fk="${fk}"]`);
+      if (el) { el.focus(); if (caret != null) try { el.setSelectionRange(caret, caret); } catch {} }
+    }
+    const total = drawDecks().reduce((s, d) => s + want(d), 0);
+    $("decks-title").textContent = `덱 ${decks.length}개`;
+    $("decks-note").textContent = total ? `이번에 ${total}장 뽑아요` : "켜진 덱이 없어요";
+  }
+
+  function deckCard(d) {
+    const li = document.createElement("li");
+    li.className = "deck-row" + (d.use ? " on" : " unused") + (d.use && d.fold ? " folded" : "");
+    li.style.setProperty("--dot", deckColor(d.id));
+    const head = document.createElement("div");
+    head.className = "deck-head";
+
+    const title = document.createElement("div");
+    title.className = "deck-title";
+    const name = document.createElement("input");
+    name.className = "deck-name"; name.type = "text"; name.maxLength = 20; name.value = d.name;
+    name.dataset.fk = "name-" + d.id;
+    name.setAttribute("aria-label", "덱 이름");
+    name.addEventListener("input", () => { d.name = name.value.trim() || "이름 없는 덱"; saveDecks(); });
+    name.addEventListener("change", () => renderSlips());
+    const all = deckWords(d).length, ok = usable(d).length;
+    const cnt = document.createElement("small"); cnt.textContent = ok === all ? `${all}개` : `${ok}/${all}개`;
+    cnt.title = "키워드 수";
+    // 켠 덱만 접기/펼치기 (끈 덱은 자리만 차지해서 이름 위치를 맞춤)
+    const fold = document.createElement("button");
+    fold.type = "button"; fold.className = "deck-fold"; fold.textContent = "▼"; fold.dataset.fk = "fold-" + d.id;
+    fold.setAttribute("aria-expanded", String(d.use && !d.fold));
+    fold.setAttribute("aria-label", d.fold ? `‘${d.name}’ 키워드 펼치기` : `‘${d.name}’ 키워드 접기`);
+    fold.disabled = !d.use;
+    fold.onclick = () => { d.fold = !d.fold; saveDecks(); renderDecks(); };
+    title.append(fold, name, cnt);
+
+    const step = document.createElement("span");
+    step.className = "deck-step";
+    const max = Math.max(1, ok), v = Math.min(d.n, max);
+    const mk = (txt, delta, label) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = txt; b.dataset.fk = `${delta}-${d.id}`;
+      b.setAttribute("aria-label", `‘${d.name}’ ${label}`);
+      b.disabled = !d.use || (delta < 0 ? v <= 1 : v >= max);
+      b.onclick = () => { d.n = Math.min(max, Math.max(1, v + delta)); saveDecks(); renderAll(); };
+      return b;
+    };
+    const val = document.createElement("b"); val.textContent = `${v}장`;
+    step.append(mk("−", -1, "한 장 덜 뽑기"), val, mk("+", 1, "한 장 더 뽑기"));
+
+    const use = document.createElement("button");
+    use.type = "button"; use.className = "toggle mini deck-use"; use.dataset.fk = "use-" + d.id;
+    use.innerHTML = '<span class="sw"></span>';
+    use.setAttribute("aria-pressed", String(d.use));
+    use.setAttribute("aria-label", `‘${d.name}’ 덱에서 뽑기`);
+    use.onclick = () => { d.use = !d.use; if (d.use) d.fold = false; saveDecks(); renderAll(); };
+
+    head.append(title, step, use);
+    if (decks.length > 1) {
+      const armed = armedDel === d.id;
+      const del = document.createElement("button");
+      del.type = "button"; del.className = "deck-del" + (armed ? " armed" : ""); del.dataset.fk = "del-" + d.id;
+      del.textContent = armed ? "삭제" : "×";
+      del.setAttribute("aria-label", armed ? `한 번 더 누르면 ‘${d.name}’ 덱 삭제` : `‘${d.name}’ 덱 삭제`);
+      del.onclick = () => {
+        clearTimeout(armTimer);
+        if (!armed) {
+          armedDel = d.id;
+          armTimer = setTimeout(() => { armedDel = null; renderDecks(); }, 3000);
+          renderDecks(); return;
+        }
+        armedDel = null; deleteDeck(d);
+      };
+      head.append(del);
+    }
+    li.append(head);
+    if (d.use && !d.fold) li.append(deckBody(d));
+    return li;
+  }
+
+  function deckBody(d) {
+    const body = document.createElement("div");
+    body.className = "deck-edit";
+
+    const add = document.createElement("div");
+    add.className = "chip-add";
+    const input = document.createElement("input");
+    input.className = "add-input"; input.type = "text"; input.autocomplete = "off";
+    input.placeholder = "키워드 입력 후 Enter"; input.dataset.fk = "add-" + d.id;
+    input.setAttribute("aria-label", `‘${d.name}’ 덱에 키워드 추가`);
+    const addBtn = document.createElement("button");
+    addBtn.type = "button"; addBtn.className = "mini-btn"; addBtn.textContent = "추가";
+    bindAdd(input, addBtn, d);
+    add.append(input, addBtn);
+
+    const chips = document.createElement("div");
+    chips.className = "chips";
+    chips.setAttribute("aria-label", `‘${d.name}’ 덱의 키워드`);
+    chips.append(...chipNodes(d));
+
+    const ta = document.createElement("textarea");
+    ta.spellcheck = false; ta.value = d.text; ta.hidden = !bulkOpen.has(d.id); ta.dataset.fk = "bulk-" + d.id;
+    ta.placeholder = "커피, 우주, 도서관\n줄바꿈이나 쉼표로 구분해서 적어요";
+    ta.setAttribute("aria-label", `‘${d.name}’ 덱 키워드 한꺼번에 편집`);
+    ta.addEventListener("input", () => { d.text = ta.value; saveDecks(); });
+    ta.addEventListener("change", () => renderAll());
+
+    const foot = document.createElement("div");
+    foot.className = "pool-foot";
+    const bulk = document.createElement("button");
+    bulk.type = "button"; bulk.className = "linkbtn"; bulk.dataset.fk = "bulkbtn-" + d.id;
+    bulk.textContent = bulkOpen.has(d.id) ? "편집 닫기" : "한꺼번에 편집";
+    bulk.setAttribute("aria-expanded", String(bulkOpen.has(d.id)));
+    bulk.onclick = () => { bulkOpen.has(d.id) ? bulkOpen.delete(d.id) : bulkOpen.add(d.id); renderDecks(); };
+    const right = document.createElement("span");
+    right.className = "foot-right";
+    if (d.excluded.length) {
+      const inc = document.createElement("button");
+      inc.type = "button"; inc.className = "linkbtn"; inc.textContent = "제외 모두 해제";
+      inc.onclick = () => { d.excluded = []; saveDecks(); renderAll(); };
+      right.append(inc);
+    }
+    const clear = document.createElement("button");
+    clear.type = "button"; clear.className = "linkbtn"; clear.textContent = "비우기";
+    clear.onclick = () => {
+      d.text = ""; d.excluded = []; saveDecks();
+      current = current.filter(c => c.from !== d.id);
+      if (!current.length) { entry = null; memoEl.value = ""; saveHistory(); }
+      renderSlips(); renderHistory();
+      $("deck-list").querySelector(`[data-fk="add-${d.id}"]`)?.focus();
+    };
+    right.append(clear);
+    foot.append(bulk, right);
+
+    body.append(add, chips, ta, foot);
+    return body;
+  }
+
+  // 칩: 이름을 누르면 이번 뽑기에서 제외, ×는 덱에서 삭제
+  function chipNodes(d) {
+    const words = deckWords(d);
+    d.excluded = d.excluded.filter(w => words.includes(w));
+    const ex = new Set(d.excluded);
+    const hits = new Set(current.map(c => c.from + "\n" + c.word));
+    if (!words.length) {
+      const s = document.createElement("span"); s.className = "chips-empty"; s.textContent = "아직 키워드가 없어요.";
+      return [s];
+    }
+    return words.map(w => {
+      const chip = document.createElement("span");
+      chip.className = "chip" + (ex.has(w) ? " off" : "") + (hits.has(d.id + "\n" + w) ? " hit" : "");
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "chip-label";
+      b.setAttribute("aria-pressed", String(!ex.has(w)));
+      b.title = ex.has(w) ? "뽑기에 다시 넣기" : "이번 뽑기에서 제외";
+      b.append(w);
+      b.onclick = () => {
+        d.excluded = ex.has(w) ? d.excluded.filter(x => x !== w) : [...d.excluded, w];
+        saveDecks(); renderAll();
+      };
+      const x = document.createElement("button");
+      x.type = "button"; x.className = "chip-x"; x.textContent = "×";
+      x.setAttribute("aria-label", `‘${w}’ 삭제`);
+      x.onclick = () => removeWithUndo(d, w);
+      chip.append(b, x);
+      return chip;
+    });
+  }
+
+  // 칩 입력: Enter·쉼표로 추가, 여러 개 붙여 넣기, 빈 칸에서 Backspace는 마지막 칩 삭제
+  function bindAdd(addEl, addBtn, d) {
+    const commit = () => {
+      if (!addEl.value.trim()) return;
+      const n = addWords(d, addEl.value);
+      addEl.value = "";
+      if (!n) toast("이미 덱에 있는 키워드예요");
+      renderAll();
+    };
+    addEl.addEventListener("keydown", e => {
+      if (e.isComposing || e.keyCode === 229) return;   // 한글 조합 중 Enter는 무시
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      else if (e.key === "Backspace" && !addEl.value) {
+        const last = deckWords(d).pop();
+        if (last) removeWithUndo(d, last);
+      }
+    });
+    addEl.addEventListener("input", e => {
+      if (e.isComposing) return;
+      const m = addEl.value.match(/^([\s\S]*)[,;，、]([^,;，、]*)$/);
+      if (m) { addWords(d, m[1]); addEl.value = m[2]; renderAll(); }
+    });
+    addEl.addEventListener("paste", e => {
+      const text = e.clipboardData?.getData("text") ?? "";
+      if (!/[,\n;，、]/.test(text)) return;
+      e.preventDefault();
+      const n = addWords(d, addEl.value + "," + text);
+      addEl.value = ""; renderAll(); toast(`${n}개를 넣었어요`);
+    });
+    addBtn.onclick = () => { commit(); addEl.focus(); };
+  }
+
+  function renderControls() {
+    $("draw").disabled = spinning || !drawDecks().length;
+    $("copy").disabled = !current.length || spinning;
+    $("share").disabled = !drawDecks().length || spinning;
+    $("opt-unique").setAttribute("aria-pressed", String(skipSeen));
+    syncUrl();
+  }
+
+  function renderAll() { renderDecks(); renderControls(); }
+
+  function lockBtn(item, d) {
+    const lock = d.querySelector(".lock");
+    lock.textContent = item.locked ? "고정 해제" : "고정";
+    lock.setAttribute("aria-pressed", String(item.locked));
+    lock.onclick = () => { item.locked = !item.locked; renderSlips(); };
+  }
+
+  // 결과 카드 오른쪽 위 × : 덱은 그대로 두고 지금 조합에서만 뺌. 다음 뽑기에는 다시 정한 장 수대로 나옴
+  function addCloseBtn(d, label, onclick) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "slip-x"; b.textContent = "×";
+    b.title = "이번 조합에서 빼기"; b.setAttribute("aria-label", label);
+    b.onclick = onclick;
+    d.append(b);
+  }
+  // 지금 조합을 바꾼 뒤 기록(기록된 조합이면 기록 쪽도)에 반영
+  function syncEntry() {
+    if (!entry) return;
+    entry.words = current.map(c => c.word); entry.decks = current.map(c => c.from);
+    saveHistory();
+  }
+
+  function slipEl(item, i, showSrc) {
+    const d = document.createElement("article");
+    d.className = "slip" + (item.locked ? " locked" : "");
+    d.style.setProperty("--dot", deckColor(item.from));   // 테두리는 늘 덱 색, 덱 이름·점은 여러 덱이 섞일 때만
+    d.innerHTML = `<div class="meta"><span class="${showSrc ? "src" : ""}"></span><span>${item.locked ? "고정됨" : ""}</span></div>
+      <div class="word"></div>
+      <div class="acts"><button type="button" class="lock"></button><button type="button" class="reroll">이것만 다시</button></div>`;
+    d.querySelector(".meta span").textContent = showSrc ? deckName(item.from) : `쪽지 ${i + 1}`;
+    d.querySelector(".word").textContent = item.word;
+    lockBtn(item, d);
+    d.querySelector(".reroll").onclick = () => draw([i]);
+    addCloseBtn(d, `‘${item.word}’ 이번 조합에서 빼기`, () => {
+      if (spinning) return;
+      current.splice(i, 1); syncEntry(); renderSlips(); renderHistory();
+    });
+    return d;
+  }
+
+  function renderStar() {
+    const on = !!entry?.star;
+    $("star").hidden = !entry;
+    $("star").setAttribute("aria-pressed", String(on));
+    $("star").textContent = on ? "★ 후보" : "☆ 후보로 표시";
+    const saved = isSaved(entry);
+    $("save-entry").hidden = !entry;
+    $("save-entry").classList.toggle("saved", saved);
+    $("save-entry").textContent = saved ? "✓ 기록됨" : "기록하기";
+    $("save-entry").title = saved ? "한 번 더 누르면 기록에서 빼요" : "";
+  }
+
+  function renderSlips(landed = []) {
+    const showSrc = new Set(current.map(c => c.from)).size > 1;
+    const els = current.map((it, i) => {
+      const el = slipEl(it, i, showSrc);
+      if (landed.includes(i) && !reduce) el.classList.add("landed");
+      return el;
+    });
+    slipsEl.replaceChildren(...els);
+    $("empty-stage").hidden = current.length > 0;
+    $("combo").hidden = !current.length;
+    renderStar(); renderAll();
+  }
+
+  function filtered() {
+    if (filter === "memo") return history.filter(h => h.memo);
+    if (filter === "star") return history.filter(h => h.star);
+    return showAll ? history : history.slice(0, 12);
+  }
+
+  function toggleStar(h) {
+    h.star = !h.star;
+    if (h.star && !isSaved(h)) { delete h.dropped; history.unshift(h); prune(); }   // 후보는 기록에서 다시 찾으니 함께 기록
+    saveHistory();
+    renderStar(); renderHistory(); toast(h.star ? "후보로 표시했어요" : "후보에서 뺐어요");
+  }
+
+  function renderHistory() {
+    $("history").hidden = !history.length;
+    document.querySelectorAll("#filter-seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.filter === filter)));
+    const list = filtered();
+    const items = list.map(h => {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "h-open";
+      b.innerHTML = `<span class="t"></span><span class="words"></span>`;
+      b.querySelector(".t").textContent = h.time;
+      b.querySelector(".words").textContent = h.words.join(" × ");
+      if (h.memo) {
+        const m = document.createElement("span");
+        m.className = "memo-preview"; m.textContent = h.memo.replace(/\s+/g, " ");
+        b.append(m);
+      }
+      b.onclick = () => { openFromHistory(h); toast("이전 조합을 불러왔어요"); };
+      const s = document.createElement("button");
+      s.type = "button"; s.className = "h-star"; s.textContent = h.star ? "★" : "☆";
+      s.setAttribute("aria-pressed", String(!!h.star));
+      s.setAttribute("aria-label", h.star ? "후보에서 빼기" : "후보로 표시");
+      s.onclick = () => toggleStar(h);
+      li.append(b, s); return li;
+    });
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.className = "history-empty";
+      li.textContent = filter === "star" ? "★ 후보로 표시한 조합이 아직 없어요." : "메모를 남긴 조합이 아직 없어요.";
+      items.push(li);
+    }
+    if (filter === "all" && !showAll && history.length > 12) {
+      const li = document.createElement("li");
+      const more = document.createElement("button");
+      more.type = "button"; more.className = "linkbtn h-more";
+      more.textContent = `더 보기 (${history.length - 12}개)`;
+      more.onclick = () => { showAll = true; renderHistory(); };
+      li.append(more); items.push(li);
+    }
+    $("history-list").replaceChildren(...items);
+    $("copy-list").disabled = !list.some(h => h.memo || h.star);
+  }
+
+  function openEntry(h) {
+    entry = h;
+    current = h.words.map((word, i) => ({ word, from: h.decks?.[i] ?? findDeckOf(word), locked: false }));
+    // 뽑기 설정도 그 기록에 맞춤: 어떤 덱에서 몇 장 (지운 덱은 건너뜀)
+    if (h.decks) {
+      const cnt = {};
+      for (const id of h.decks) cnt[id] = (cnt[id] || 0) + 1;
+      if (Object.keys(cnt).some(id => getDeck(id))) {
+        for (const d of decks) { d.use = !!cnt[d.id]; if (cnt[d.id]) d.n = cnt[d.id]; }
+        saveDecks();
+      }
+    }
+    memoEl.value = h.memo ?? "";
+    $("memo-state").textContent = "";
+    if (!$("combo-q").textContent) $("combo-q").textContent = PROMPTS[rand(PROMPTS.length)];
+    renderSlips(); renderHistory();
+  }
+
+  // 기록에서 꺼낸 조합이 지금 조합이 됨 (기록에는 그대로 남음)
+  function openFromHistory(h) {
+    keepIfNoted();
+    entry = h; prune(); saveHistory();
+    openEntry(h);
+  }
+
+  // ── 뽑기 ──
+  // targets: 다시 뽑을 칸의 인덱스. 없으면 체크한 덱마다 정한 장 수만큼, 고정 안 된 칸을 다시 뽑음
+  function draw(targets) {
+    if (spinning) return;
+    const full = !targets;
+    let next;
+    if (targets) {
+      next = current.map(c => ({ ...c }));
+      targets = targets.filter(i => usable(getDeck(next[i]?.from)).length);
+      if (!targets.length) return;
+    } else {
+      const act = drawDecks();
+      if (!act.length) return;
+      next = [];
+      for (const d of act) {
+        const pw = usable(d);
+        const locked = current.filter(c => c.locked && c.from === d.id && pw.includes(c.word)).slice(0, want(d));
+        next.push(...locked, ...Array(want(d) - locked.length).fill(null).map(() => ({ word: "", from: d.id, locked: false })));
+      }
+      targets = next.map((c, i) => c.word ? -1 : i).filter(i => i >= 0);
+    }
+    const slots = next;
+    const fill = () => {
+      const out = slots.map(c => ({ ...c }));
+      const taken = new Set(out.filter((_, i) => !targets.includes(i)).map(c => c.word));
+      for (const i of targets) {
+        const from = out[i].from, prev = out[i].word;
+        const pw = usable(getDeck(from)).filter(w => !taken.has(w));
+        // 바로 전에 나온 단어는 피함: 이 칸만 다시 뽑을 땐 그 칸 단어, 전체 뽑기 땐 그 덱에서 방금 나온 단어들
+        const avoid = full ? new Set(current.filter(c => c.from === from).map(c => c.word)) : new Set([prev]);
+        let cands = pw.filter(w => !avoid.has(w));
+        if (!cands.length) cands = pw;
+        const w = pickOne(cands) ?? prev;
+        out[i] = { word: w, from, locked: false };
+        if (w) taken.add(w);
+      }
+      return out;
+    };
+    // 이미 나온 조합 제외: 키워드 묶음(순서 무관)이 기록·지금 조합과 겹치면 다시 뽑음
+    const comboKey = words => words.filter(Boolean).sort().join("\n");
+    next = fill();
+    let exhausted = false;
+    if (skipSeen) {
+      const seen = new Set([...history, ...(entry ? [entry] : [])].map(h => comboKey(h.words)));
+      for (let tries = 0; seen.has(comboKey(next.map(c => c.word))) && tries < 100; tries++) next = fill();
+      exhausted = seen.has(comboKey(next.map(c => c.word)));
+    }
+    // 뽑을 키워드가 없어 빈 칸은 빼고, 다시 뽑는 칸 번호도 빠진 칸만큼 당김
+    const kept = next.map((c, i) => c.word ? i : -1).filter(i => i >= 0);
+    targets = targets.map(i => kept.indexOf(i)).filter(i => i >= 0);
+    next = next.filter(c => c.word);
+
+    const finish = () => {
+      current = next; spinning = false;
+      record();
+      renderSlips(targets); renderHistory();
+      if (exhausted) toast("아직 안 나온 조합을 찾지 못해 이미 나온 조합을 보여줘요");
+    };
+    if (reduce) return finish();
+
+    // 짧은 셔플 연출: 칸마다 시간차를 두고 멈춤
+    spinning = true;
+    current = next.map(c => ({ ...c }));
+    renderSlips();
+    const els = [...slipsEl.children];
+    targets.forEach(i => els[i]?.classList.add("spinning"));
+    const start = performance.now(), base = 520, stagger = 140;
+    const tick = now => {
+      const el = now - start;
+      let alive = false;
+      targets.forEach((i, k) => {
+        if (el < base + k * stagger) {
+          alive = true;
+          const pw = usable(getDeck(next[i].from));
+          if (pw.length) els[i].querySelector(".word").textContent = pw[rand(pw.length)];
+        }
+      });
+      alive ? setTimeout(() => requestAnimationFrame(tick), 55) : finish();
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // 새로 뽑은 쪽지가 지금 조합이 됨. 기록에는 '기록하기'를 눌러야 남음
+  function record() {
+    keepIfNoted();
+    entry = { id: newId(), time: stamp(), words: current.map(c => c.word), decks: current.map(c => c.from), memo: "", star: false };
+    prune(); saveHistory();
+    memoEl.value = ""; $("memo-state").textContent = "";
+    $("combo-q").textContent = PROMPTS[rand(PROMPTS.length)];
+  }
+
+  let toastTimer;
+  function toast(msg, undo) {
+    const t = $("toast"); t.textContent = msg; t.hidden = false;
+    if (undo) {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = "되돌리기";
+      b.onclick = () => { t.hidden = true; undo(); };
+      t.append(b);
+    }
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, undo ? 4000 : 1600);
+  }
+
+  const comboText = () => current.map(c => c.word).join(" × ");
+
+  function deleteDeck(d) {
+    if (decks.length <= 1) return;
+    decks = decks.filter(x => x !== d);
+    saveDecks(); renderSlips(); toast(`‘${d.name}’ 덱을 지웠어요`);
+  }
+
+  // 새 덱: '새 덱 1'처럼 비어 있는 번호로 바로 만들고 켠 채로 펼쳐, 키워드 입력칸에 초점
+  $("deck-add").onclick = () => {
+    let k = 1;
+    while (decks.some(x => x.name === `새 덱 ${k}`)) k++;
+    const d = { id: newId(), name: `새 덱 ${k}`, text: "", excluded: [], use: true, n: 1 };
+    decks.push(d); saveDecks(); renderAll();
+    $("deck-list").querySelector(`[data-fk="add-${d.id}"]`)?.focus();
+  };
+
+  // ── 이벤트: 뽑기와 옵션 ──
+  $("draw").onclick = () => draw();
+  $("opt-unique").onclick = () => {
+    skipSeen = !skipSeen; store.set("skipSeen", skipSeen); renderControls();
+    toast(skipSeen ? "기록에 있는 조합은 다시 나오지 않아요" : "이미 나온 조합도 다시 나올 수 있어요");
+  };
+  $("star").onclick = () => entry && toggleStar(entry);
+  $("save-entry").onclick = () => {
+    if (!entry) return;
+    if (isSaved(entry)) { history = history.filter(h => h.id !== entry.id); entry.dropped = true; toast("기록에서 뺐어요"); }
+    else { delete entry.dropped; history.unshift(entry); prune(); toast("기록에 남겼어요"); }
+    saveHistory(); renderStar(); renderHistory();
+  };
+  $("q-reroll").onclick = () => {
+    const l = PROMPTS.filter(p => p !== $("combo-q").textContent);
+    $("combo-q").textContent = l[rand(l.length)];
+  };
+
+  function showPanel(btnId, panelId, open) {
+    $(panelId).hidden = !open;
+    $(btnId).setAttribute("aria-expanded", String(open));
+  }
+
+  // 초기화: 기록과 테마만 남기고 저장값(덱, 지금 조합 포함)을 모두 지운 뒤, 주소의 공유 내용 없이 다시 엶
+  const KEEP = new Set(["kwdraw:history", "kwdraw:theme"]);
+  $("reset-open").onclick = () => showPanel("reset-open", "reset-panel", $("reset-panel").hidden);
+  $("reset-cancel").onclick = () => showPanel("reset-open", "reset-panel", false);
+  $("reset-go").onclick = () => {
+    try { Object.keys(localStorage).filter(k => k.startsWith("kwdraw:") && !KEEP.has(k)).forEach(k => localStorage.removeItem(k)); } catch {}
+    if (framed) location.reload(); else location.replace(location.pathname);
+  };
+
+  // 기록 삭제: 지난 기록만 지움. 지금 조합은 기록이 아니라서 남음
+  $("history-clear-open").onclick = () => {
+    const open = $("history-clear-panel").hidden;
+    if (open) {
+      const kept = history.filter(h => h.memo || h.star).length;
+      $("history-clear-note").textContent = `기록 ${history.length}개가 지워져요.`
+        + (kept ? ` 메모나 ★가 있는 ${kept}개도 포함돼요.` : "") + " 지금 화면의 조합은 남아요.";
+    }
+    showPanel("history-clear-open", "history-clear-panel", open);
+  };
+  $("history-clear-cancel").onclick = () => showPanel("history-clear-open", "history-clear-panel", false);
+  $("history-clear-go").onclick = () => {
+    history = []; filter = "all"; saveHistory();
+    showPanel("history-clear-open", "history-clear-panel", false);
+    renderHistory(); toast("기록을 모두 지웠어요");
+  };
+
+  // 테마: 시스템이면 data-theme을 지워 OS 설정(prefers-color-scheme)을 따름
+  function applyTheme(choice) {
+    if (choice === "light" || choice === "dark") document.documentElement.dataset.theme = choice;
+    else { choice = "system"; delete document.documentElement.dataset.theme; }
+    document.querySelectorAll("#theme-seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeChoice === choice)));
+  }
+  applyTheme(store.get("theme"));
+  document.querySelectorAll("#theme-seg button").forEach(b => b.onclick = () => {
+    store.set("theme", b.dataset.themeChoice); applyTheme(b.dataset.themeChoice);
+  });
+  document.querySelectorAll("#filter-seg button").forEach(b => b.onclick = () => { filter = b.dataset.filter; showAll = false; renderHistory(); });
+
+  $("copy").onclick = async () => {
+    const text = comboText();
+    try { await navigator.clipboard.writeText(text); toast("복사했어요: " + text); }
+    catch { toast("이 환경에서는 복사할 수 없어요"); }
+  };
+  $("share").onclick = async () => {
+    syncUrl();
+    const url = location.origin + shareUrl();
+    try { await navigator.clipboard.writeText(url); toast("공유 링크를 복사했어요"); }
+    catch { toast("주소창의 링크를 복사해 공유하세요"); }
+  };
+  $("copy-list").onclick = async () => {
+    const notes = filtered().filter(h => h.memo || h.star).reverse();
+    const text = notes.map(h => {
+      const head = `## ${h.star ? "★ " : ""}${h.words.join(" × ")}`;
+      return h.memo ? `${head}\n${h.memo.trim()}` : head;
+    }).join("\n\n");
+    try { await navigator.clipboard.writeText(text); toast(`${notes.length}개를 마크다운으로 복사했어요`); }
+    catch { toast("이 환경에서는 복사할 수 없어요"); }
+  };
+
+  let memoTimer;
+  memoEl.addEventListener("input", () => {
+    if (!entry) return;
+    entry.memo = memoEl.value.trim() ? memoEl.value : "";
+    $("memo-state").textContent = "저장 중…";
+    clearTimeout(memoTimer);
+    memoTimer = setTimeout(() => {
+      saveHistory(); renderHistory(); syncUrl();
+      $("memo-state").textContent = "저장됨 · " + stamp().slice(6);
+    }, 400);
+  });
+  document.addEventListener("keydown", e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && e.target.tagName !== "TEXTAREA") { e.preventDefault(); draw(); }
+  });
+
+  // ── 시작 ──
+  saveDecks();
+  if (!/Mac|iPhone|iPad/.test(navigator.platform)) $("draw-key").textContent = "Ctrl+Enter";
+  $("share").hidden = framed;
+  let savedCurrent = store.get("current");
+  if (savedCurrent) {   // 기록된 조합이면 기록 쪽 객체를 써서 메모가 양쪽에 함께 반영되게
+    savedCurrent.id ??= newId();
+    absorbTwist(savedCurrent);
+    savedCurrent = history.find(h => h.id === savedCurrent.id) ?? savedCurrent;
+  }
+  if (current.length) {
+    // 공유 링크로 들어온 조합: 지금 조합과 같으면 이어 쓰고, 아니면 지금 조합을 기록으로 넘기고 바꿈
+    const words = current.map(c => c.word);
+    const sharedMemo = params.get("m") ?? "";
+    const same = savedCurrent?.words?.join("\n") === words.join("\n");
+    if (same) { entry = savedCurrent; entry.decks = current.map(c => c.from); if (sharedMemo && !entry.memo) entry.memo = sharedMemo; }
+    else {
+      entry = savedCurrent?.words?.length ? savedCurrent : null;
+      keepIfNoted();
+      entry = { id: newId(), time: stamp(), words, decks: current.map(c => c.from), memo: sharedMemo, star: false };
+      prune();
+    }
+    saveHistory();
+    openEntry(entry);
+  } else if (savedCurrent?.words?.length) {
+    entry = savedCurrent;
+    openEntry(entry);   // 새로고침해도 지금 조합과 메모가 그대로
+  } else {
+    renderSlips(); renderHistory();
+    // 처음 열었을 때도 무엇을 하는 도구인지 보이도록 예시로 한 번 뽑아 둠
+    draw();
+  }
+})();
+</script>
