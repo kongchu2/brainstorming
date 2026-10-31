@@ -47,18 +47,6 @@
         <button class="deck-add" id="deck-add" type="button">+ 새 덱</button>
         </div>
       </div>
-
-      <div class="reset-zone">
-        <button class="reset-btn" id="reset-open" type="button" aria-expanded="false" aria-controls="reset-panel">↺ 처음 상태로 초기화</button>
-        <div class="reset-panel" id="reset-panel" hidden>
-          <b>처음 상태로 되돌릴까요?</b>
-          <p class="reset-desc">저장한 덱, 뽑을 장 수·토글 설정, 지금 화면의 조합과 메모, 주소에 담긴 공유 내용이 지워져요. 지난 뽑기 기록, 테마, 애니메이션 최소화 설정은 남아요.</p>
-          <div class="reset-actions">
-            <button class="danger" id="reset-go" type="button">초기화</button>
-            <button class="ghost" id="reset-cancel" type="button">취소</button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <section class="stage" aria-label="뽑기 결과">
@@ -68,29 +56,45 @@
           <button class="toggle" id="opt-unique" type="button" aria-pressed="true">이미 나온 조합 제외<span class="sw"></span></button>
           <button class="toggle" id="opt-motion" type="button" aria-pressed="false">애니메이션 최소화<span class="sw"></span></button>
         </span>
-        <button class="ghost" id="copy" type="button" disabled>결과 복사</button>
-        <button class="ghost" id="share" type="button">링크 공유</button>
+      </div>
+      <div class="slips" id="slips" aria-live="polite"></div>
+      <div class="empty-stage" id="empty-stage" hidden><b>아직 뽑은 쪽지가 없어요</b><span id="empty-hint"></span></div>
+      <!-- 쪽지 아래 버튼 줄: 왼쪽에 덱 공유, 오른쪽 끝에 위험한 두 버튼 -->
+      <div class="result-actions">
+        <button class="ghost" id="share" type="button">덱 공유</button>
+        <span class="pair">
+          <button class="ghost danger-text" id="wipe-open" type="button" aria-expanded="false" aria-controls="wipe-panel">덱 전부 삭제</button>
+          <button class="ghost danger-text" id="reset-open" type="button" aria-expanded="false" aria-controls="reset-panel">전부 초기화</button>
+        </span>
+      </div>
+      <div class="reset-panel" id="reset-panel" hidden>
+        <b>처음 상태로 되돌릴까요?</b>
+        <p class="reset-desc">저장한 덱, 뽑을 장 수·토글 설정, 지금 화면의 조합과 메모, 주소에 담긴 공유 내용이 지워져요. 지난 뽑기 기록, 테마, 애니메이션 최소화 설정은 남아요.</p>
+        <div class="reset-actions">
+          <button class="danger" id="reset-go" type="button">전부 초기화</button>
+          <button class="ghost" id="reset-cancel" type="button">취소</button>
+        </div>
+      </div>
+      <div class="reset-panel" id="wipe-panel" hidden>
+        <b>덱을 모두 지울까요?</b>
+        <p class="reset-desc">모든 덱과 키워드가 지워지고 빈 덱 두 개로 시작해요. 지금 화면의 조합은 기록으로 넘어가요. 기록과 다른 설정은 남아요.</p>
+        <div class="reset-actions">
+          <button class="danger" id="wipe-go" type="button">덱 전부 삭제</button>
+          <button class="ghost" id="wipe-cancel" type="button">취소</button>
+        </div>
       </div>
 
-      <div class="slips" id="slips" aria-live="polite"></div>
-      <div class="empty-stage" id="empty-stage" hidden><b>아직 뽑은 쪽지가 없어요</b>왼쪽에서 뽑을 덱을 켜고 ‘뽑기’를 누르세요.</div>
-
       <div class="combo" id="combo" hidden>
-        <div class="combo-q-row">
-          <p class="combo-q" id="combo-q"></p>
-          <span class="combo-actions">
-            <button class="mini-btn ico-btn" id="q-reroll" type="button" title="이것만 다시 (질문)" aria-label="질문 이것만 다시"></button>
-            <button class="star-btn" id="star" type="button" aria-pressed="false">☆ 후보로 표시</button>
-          </span>
-        </div>
         <div class="memo">
           <div class="memo-head">
             <label class="label" for="memo">메모</label>
-            <span class="memo-state" id="memo-state" aria-live="polite"></span>
+            <span class="memo-tools">
+              <span class="memo-state" id="memo-state" aria-live="polite"></span>
+              <button class="pin-btn" id="pin" type="button" aria-pressed="false">핀 고정</button>
+            </span>
           </div>
           <textarea id="memo" placeholder="이 조합에서 떠오른 생각을 적어 두세요."></textarea>
         </div>
-        <button class="save-btn" id="save-entry" type="button">기록하기</button>
       </div>
 
       <div class="history" id="history" hidden>
@@ -99,10 +103,9 @@
           <span class="history-tools">
             <span class="seg" id="filter-seg" role="group" aria-label="기록 거르기">
               <button type="button" data-filter="all" aria-pressed="true">전체</button>
-              <button type="button" data-filter="memo" aria-pressed="false">메모</button>
-              <button type="button" data-filter="star" aria-pressed="false">★ 후보</button>
+              <button type="button" data-filter="pin" aria-pressed="false">핀</button>
             </span>
-            <button class="linkbtn" id="history-clear-open" type="button" aria-expanded="false" aria-controls="history-clear-panel">기록 삭제</button>
+            <button class="linkbtn danger-link" id="history-clear-open" type="button" aria-expanded="false" aria-controls="history-clear-panel">기록 삭제</button>
           </span>
         </div>
         <div class="reset-panel" id="history-clear-panel" hidden>

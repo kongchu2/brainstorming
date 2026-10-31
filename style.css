@@ -10,7 +10,6 @@
   --accent-ink: #FFFFFF;
   --mark: #F1B42F;
   --mark-soft: #FCEBC2;
-  --twist-bg: #E9EDFF;
   --danger: #C2372B;
   --danger-ink: #FFFFFF;
   /* 덱 구분 색: 저장한 덱 순서대로 */
@@ -24,7 +23,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --paper: #0E131A; --surface: #171F2A; --ink: #E6ECF3; --muted: #93A0B2; --line: #2A3543;
-    --accent: #7E90FF; --accent-ink: #0E131A; --mark: #F3C04F; --mark-soft: #3A3018; --twist-bg: #1C2445; --chip-off: #222C39;
+    --accent: #7E90FF; --accent-ink: #0E131A; --mark: #F3C04F; --mark-soft: #3A3018; --chip-off: #222C39;
     --danger: #FF7B6E; --danger-ink: #0E131A;
     --c0: #7E90FF; --c1: #F3C04F; --c2: #4CC896; --c3: #5CC8E8; --c4: #B394FF;
     --shadow: 0 1px 0 rgba(0,0,0,.3), 0 10px 28px -12px rgba(0,0,0,.6);
@@ -33,7 +32,7 @@
 }
 :root[data-theme="dark"] {
   --paper: #0E131A; --surface: #171F2A; --ink: #E6ECF3; --muted: #93A0B2; --line: #2A3543;
-  --accent: #7E90FF; --accent-ink: #0E131A; --mark: #F3C04F; --mark-soft: #3A3018; --twist-bg: #1C2445; --chip-off: #222C39;
+  --accent: #7E90FF; --accent-ink: #0E131A; --mark: #F3C04F; --mark-soft: #3A3018; --chip-off: #222C39;
   --danger: #FF7B6E; --danger-ink: #0E131A;
     --c0: #7E90FF; --c1: #F3C04F; --c2: #4CC896; --c3: #5CC8E8; --c4: #B394FF;
   --shadow: 0 1px 0 rgba(0,0,0,.3), 0 10px 28px -12px rgba(0,0,0,.6);
@@ -63,7 +62,14 @@ header.top h1 { font-family: var(--f-display); font-weight: 400; font-size: clam
 header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 / -1; }
 
 .grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
-@media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } .stage { order: -1; } }
+/* 좁은 화면: 결과(뽑기 줄·쪽지·버튼 줄) → 덱 → 메모 → 기록 순서. 기록은 .stage 안에 있어서 .stage를 풀어(display: contents) 따로 순서를 줌 */
+@media (max-width: 820px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .grid > .stage { display: contents; }   /* 아래쪽 .stage { display: grid }보다 우선하도록 .grid를 붙임 */
+  .grid > .stage > * { order: -1; }
+  .grid > .stage > .combo { order: 1; }     /* 메모는 덱 아래, 기록 바로 위 */
+  .grid > .stage > .history { order: 2; }
+}
 
 .label { font-size: 13px; font-weight: 600; color: var(--muted); }
 /* 구역 제목 (덱, 기록): 쪽지 단어와 같은 글꼴 */
@@ -78,12 +84,6 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .pools { display: grid; gap: 14px; min-width: 0; }
 .foot-right { display: flex; gap: 14px; margin-left: auto; }
 .toggle.mini { padding: 4px; border: 0; background: none; }
-.reset-zone { display: grid; gap: 8px; }
-.reset-btn {
-  height: 40px; border-radius: 10px; cursor: pointer; font-size: 13.5px; font-weight: 600;
-  border: 1px solid var(--danger); background: var(--surface); color: var(--danger);
-}
-.reset-btn:hover, .reset-btn[aria-expanded="true"] { background: var(--danger); color: var(--danger-ink); }
 .reset-panel { width: 100%; background: var(--surface); border: 1px solid var(--danger); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; }
 .reset-panel b { font-weight: 600; }
 .reset-desc { margin: 0; color: var(--muted); font-size: 13px; }
@@ -164,31 +164,42 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .linkbtn { background: none; border: 0; padding: 3px 6px; margin: -3px -6px; border-radius: 6px; color: var(--muted); font-size: 12.5px; font-weight: 500; cursor: pointer; }
 .linkbtn:hover:not(:disabled) { color: var(--ink); background: var(--chip-off); }
 .linkbtn:disabled { opacity: .4; cursor: default; }
+/* 위험한 글자 버튼 (기록 삭제): 빨간 글씨 */
+.linkbtn.danger-link { color: var(--danger); font-weight: 600; }
+.linkbtn.danger-link:hover, .linkbtn.danger-link[aria-expanded="true"] { color: var(--danger); background: var(--chip-off); }
 
 /* ── 판 (결과) ── */
 .stage { display: grid; gap: 16px; min-width: 0; }
-/* 뽑기 줄: [뽑기(남는 폭)] [결과 복사] [링크 공유] / 다음 줄에 [이미 나온 조합 제외] [애니메이션 최소화] */
-.controls { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px 8px; }
-.controls:has(#share[hidden]) { grid-template-columns: minmax(0, 1fr) auto; }   /* Artifact 안: 링크 공유가 없으면 빈칸 없이 */
-.controls .opts { grid-row: 2; grid-column: 1 / -1; justify-self: start; }
+/* 뽑기 줄: [뽑기(한 줄 전체)] / 다음 줄에 토글 두 개 */
+.controls { display: grid; gap: 10px; }
 .controls .draw { justify-content: center; }
+/* 쪽지 아래 버튼 줄: [덱 공유] ……… [덱 전부 삭제][전부 초기화]. 좁으면 덱 공유가 한 줄 전체, 위험한 두 버튼이 다음 줄 반반 폭 */
+.result-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.result-actions .pair { display: flex; gap: 8px; }
+@media (max-width: 600px), (min-width: 821px) and (max-width: 1000px) {
+  .result-actions > #share, .result-actions .pair { flex: 1 1 100%; }
+  .result-actions .pair > button { flex: 1; }
+}
+/* 초기화·덱 전부 삭제: 다른 버튼과 같은 모양에 글자만 빨강 */
+.ghost.danger-text { color: var(--danger); }
+.ghost.danger-text:hover, .ghost.danger-text[aria-expanded="true"] { border-color: var(--danger); }
 /* 휴대폰: 단축키 표시 숨김 */
 @media (max-width: 560px) { .draw kbd { display: none; } }
 /* 넓은 화면: 뽑기 줄 위쪽 끝을 첫 덱 카드 위쪽 끝에 맞춤 (왼쪽 '덱 N개' 줄 높이 + 간격만큼 내림) */
 @media (min-width: 821px) { .stage { padding-top: 33px; } }
-/* 뽑기 버튼 (기록하기도 모양을 같이 쓰되 아래에서 테두리 버튼으로 낮춤) */
-.draw, .save-btn {
-  border-radius: 12px; cursor: pointer;
+/* 뽑기 버튼 */
+.draw {
+  border-radius: 10px; cursor: pointer;
   background: var(--accent); color: var(--accent-ink);
   font-family: var(--f-display); letter-spacing: .01em; box-shadow: var(--shadow);
   transition: transform .12s;
 }
 @media (hover: hover) {
-  .draw:hover:not(:disabled), .save-btn:hover { transform: translateY(-1px); }
+  .draw:hover:not(:disabled) { transform: translateY(-1px); }
 }
-.draw:active:not(:disabled), .save-btn:active { transform: translateY(1px); }
+.draw:active:not(:disabled) { transform: translateY(1px); }
 .draw {
-  height: 50px; padding: 0 26px; border: 0; font-size: 21px;
+  height: 42px; padding: 0 22px; border: 0; font-size: 19px;
   display: inline-flex; align-items: center; gap: 10px;
 }
 .draw:disabled { opacity: .45; cursor: default; }
@@ -228,7 +239,7 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .slip .src::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--accent)); flex: none; }
 .slip .word {
   font-family: var(--f-display); font-size: clamp(30px, 3.4vw, 40px); line-height: 1.1;
-  align-self: center; overflow-wrap: anywhere; text-wrap: balance;
+  align-self: center; overflow-wrap: anywhere; text-wrap: balance; word-break: keep-all;
 }
 .slip.spinning .word { color: var(--muted); filter: blur(.4px); }
 .slip .acts { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -246,21 +257,22 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .empty-stage b { display: block; font-family: var(--f-display); font-weight: 400; font-size: 24px; color: var(--ink); margin-bottom: 4px; }
 
 .combo { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; }
-.star-btn { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 3px 12px; font-size: 13px; cursor: pointer; color: var(--muted); }
-.star-btn:hover { border-color: var(--muted); color: var(--ink); }
-.star-btn[aria-pressed="true"] { background: var(--mark-soft); border-color: var(--mark); color: var(--ink); }
-.save-btn { height: 42px; margin-top: 4px; border: 1.5px solid var(--accent); border-radius: 10px; font-size: 17px; background: var(--surface); color: var(--accent); box-shadow: none; }
-.save-btn.saved { background: var(--twist-bg); color: var(--accent); box-shadow: none; }
-.combo-q-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
-.combo-actions { display: flex; align-items: center; gap: 6px; flex: none; }
-.combo-q { font-size: 16px; font-weight: 500; margin: 0; text-wrap: balance; min-width: 0; }
+/* 핀 고정 (이번 조합·기록 목록). 눌리면 마리골드에 아이콘 속을 채움 */
+.pin-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: none; border-radius: 999px; padding: 3px 12px 3px 9px; font-size: 13px; cursor: pointer; color: var(--muted); }
+.pin-btn .ico { width: 13px; height: 13px; }
+.pin-btn:hover { border-color: var(--muted); color: var(--ink); }
+.pin-btn[aria-pressed="true"] { background: var(--mark-soft); border-color: var(--mark); color: var(--ink); }
+.pin-btn[aria-pressed="true"] .ico, .history .h-pin[aria-pressed="true"] .ico { fill: currentColor; }
 .mini-btn { flex: none; border: 1px solid var(--line); background: none; border-radius: 6px; padding: 2px 9px; font-size: 12px; cursor: pointer; color: var(--muted); }
 .mini-btn:hover { color: var(--ink); border-color: var(--muted); }
 
 /* 메모 */
-.memo { display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 4px; }
-.memo-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.memo { display: grid; gap: 8px; }
+/* 메모 머리줄: [메모] ……… [저장됨 · 시각] [핀 고정] */
+.memo-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.memo-tools { display: flex; align-items: center; gap: 10px; }
 .memo-state { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
+textarea#memo::placeholder { color: var(--muted); }
 textarea#memo {
   --lh: 26px;
   width: 100%; min-height: calc(var(--lh) * 4 + 12px); resize: vertical;
@@ -268,13 +280,12 @@ textarea#memo {
   line-height: var(--lh); font-size: 14.5px;
   background-color: var(--paper);
 }
-textarea#memo::placeholder { color: var(--muted); }
 
 .history { display: grid; gap: 8px; }
 .history-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
 .history-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .history ol { list-style: none; margin: 0; padding: 0; display: grid; }
-.history li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--line); }
+.history li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; border-top: 1px solid var(--line); }
 .history .h-open {
   width: 100%; text-align: left; background: none; border: 0;
   padding: 9px 2px; cursor: pointer; font-size: 13.5px; min-width: 0;
@@ -285,9 +296,21 @@ textarea#memo::placeholder { color: var(--muted); }
 .history .words, .history .memo-preview { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history .memo-preview { grid-column: 2; color: var(--muted); font-size: 12.5px; }
 .history .memo-preview::before { content: "✎ "; color: var(--mark); }
-.history .h-star { background: none; border: 0; cursor: pointer; font-size: 18px; line-height: 1; padding: 6px 8px; color: var(--muted); }
-.history .h-star:hover { color: var(--ink); }
-.history .h-star[aria-pressed="true"] { color: var(--mark); }
+.history .h-pin, .history .h-memo { background: none; border: 0; cursor: pointer; line-height: 0; padding: 8px; border-radius: 6px; color: var(--muted); }
+.history .h-pin .ico, .history .h-memo .ico { width: 16px; height: 16px; }
+.history .h-pin:hover, .history .h-memo:hover, .history .h-memo[aria-expanded="true"] { color: var(--ink); background: var(--chip-off); }
+/* 기록 줄 아래 메모 칸 (뒤늦게 메모 남기기) */
+.history .h-memo-edit {
+  grid-column: 1 / -1; margin: 0 0 10px; width: 100%; resize: vertical; min-height: 60px;
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 14px; line-height: 1.6;
+  background: var(--paper);
+}
+.history .h-memo-edit::placeholder { color: var(--muted); }
+.history li.pinned .h-memo-edit { margin-inline: 8px; width: calc(100% - 16px); background: var(--surface); }
+.history .h-pin[aria-pressed="true"] { color: var(--mark); }
+/* 핀 고정한 기록(맨 위)은 연한 마리골드 바탕 */
+.history li.pinned { background: var(--mark-soft); border-top-color: transparent; border-radius: 8px; margin-bottom: 2px; }
+.history li.pinned .h-open { padding-left: 8px; }
 .history-empty { color: var(--muted); font-size: 13px; padding: 9px 2px; }
 .history .h-more { padding: 10px 2px; justify-self: start; }
 
@@ -309,4 +332,4 @@ textarea#memo::placeholder { color: var(--muted); }
 
 /* 애니메이션 최소화 (뽑기 줄의 스위치, 기본은 OS 설정을 따름) */
 :root[data-motion="reduce"] *, :root[data-motion="reduce"] ::before, :root[data-motion="reduce"] ::after { animation: none !important; transition: none !important; }
-:root[data-motion="reduce"] .draw, :root[data-motion="reduce"] .save-btn { transform: none !important; }
+:root[data-motion="reduce"] .draw { transform: none !important; }

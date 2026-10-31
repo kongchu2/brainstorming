@@ -3,7 +3,7 @@ import { state } from "./state.js";
 import { $, rand, pickOne, reduced, toast } from "./util.js";
 import { getDeck, usable, drawDecks, want } from "./decks.js";
 import { newEntry, switchEntry } from "./entry.js";
-import { buildSlips, newQuestion } from "./view-stage.js";
+import { buildSlips } from "./view-stage.js";
 import { refreshHits } from "./view-decks.js";
 import { render } from "./render.js";
 
@@ -43,7 +43,7 @@ function fill(slots, targets) {
 }
 
 // targets: 다시 뽑을 칸 번호 ('이것만 다시'). 없으면 전체 뽑기.
-// sample: 처음 방문·초기화 때의 예시 뽑기 (메모·★ 없이 다음으로 넘어가면 기록에 안 남김)
+// sample: 처음 방문·초기화 때의 예시 뽑기 (메모·핀 없이 다음으로 넘어가면 기록에 안 남김)
 export function draw(targets, sample = false) {
   if (state.spinning) return;
   const p = plan(targets);
@@ -64,7 +64,6 @@ export function draw(targets, sample = false) {
   const finish = () => {
     state.current = next; state.spinning = false;
     switchEntry(newEntry({ sample }));   // 이전 조합은 기록으로
-    newQuestion();
     render({ landed });
     // 덱 칩 하이라이트는 착지 애니메이션이 끝난 뒤에 (시간은 CSS에서 읽음)
     if (state.spinSlots.length) {

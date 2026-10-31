@@ -1,18 +1,19 @@
 // 지금 조합(entry)과 기록(history). 화면은 view-stage.js·view-history.js
 //
-// entry: 지금 화면의 조합 {id, time, words, decks, memo, star, keep}. 메모·★는 여기에 붙음.
-// 다른 조합으로 넘어갈 때(뽑기·기록 열기·쪽지 다 빼기) entry를 기록에 남김. 단 keep === false면 안 남김.
-//   keep = false: 예시 뽑기, '✓ 기록됨'으로 뺀 조합, 기록 삭제 때의 (메모 없는) 지금 조합
-//   ★·기록하기·메모를 쓰면 keep이 풀림
+// entry: 지금 화면의 조합 {id, time, words, decks, memo, pin, keep}. 메모·핀은 여기에 붙음.
+// 다른 조합으로 넘어갈 때(뽑기·기록 열기·쪽지 다 빼기) entry를 늘 기록에 남김. 단 keep === false면 안 남김.
+//   keep = false: 예시 뽑기, 기록 삭제 때의 (메모 없는) 지금 조합
+//   핀 고정이나 메모를 쓰면 keep이 풀림
+// 핀 고정한 기록은 기록 삭제에도 남고, 목록 맨 위에 보임
 // 기록 여부(history, keep)는 이 파일 안에서만 바꿈. 다른 파일은 여기 함수를 부를 것
 import { state } from "./state.js";
 import { store, newId, stamp } from "./util.js";
 import { getDeck, findDeckOf, saveDecks } from "./decks.js";
 
-export const isSaved = e => !!e && state.history.some(h => h.id === e.id);
-// 지금 쪽지로 새 조합을 만듦. sample: 예시 뽑기 (메모·★ 없이 넘어가면 기록에 안 남김)
+const isSaved = e => !!e && state.history.some(h => h.id === e.id);
+// 지금 쪽지로 새 조합을 만듦. sample: 예시 뽑기 (메모·핀 없이 넘어가면 기록에 안 남김)
 export function newEntry({ memo = "", sample = false } = {}) {
-  const e = { id: newId(), time: stamp(), memo: "", star: false,
+  const e = { id: newId(), time: stamp(), memo: "", pin: false,
     words: state.current.map(c => c.word), decks: state.current.map(c => c.from) };
   if (sample) e.keep = false;
   if (memo) setMemo(memo, e);
@@ -20,16 +21,12 @@ export function newEntry({ memo = "", sample = false } = {}) {
 }
 
 export function saveHistory() { store.set("history", state.history); store.set("current", state.entry); }
-// 메모·★ 없는 기록은 최근 300개까지만
-function prune() { let plain = 0; state.history = state.history.filter(h => h.memo || h.star || ++plain <= 300); }
+// 메모·핀 없는 기록은 최근 300개까지만
+function prune() { let plain = 0; state.history = state.history.filter(h => h.memo || h.pin || ++plain <= 300); }
 
 export function remember(e) {
   delete e.keep;
   if (!isSaved(e)) { state.history.unshift(e); prune(); }
-}
-export function forget(e) {
-  state.history = state.history.filter(h => h.id !== e.id);
-  e.keep = false; e.star = false;
 }
 // 지금 조합을 next로 바꿈. 이전 조합은 빼 둔 게 아니면 기록에 남김
 export function switchEntry(next) {
@@ -39,20 +36,21 @@ export function switchEntry(next) {
   saveHistory();
 }
 
-export function toggleStar(h) {
-  h.star = !h.star;
-  if (h.star) remember(h);   // 후보는 기록에서 다시 찾으니 함께 기록
+export function togglePin(h) {
+  h.pin = !h.pin;
+  if (h.pin) remember(h);   // 핀 고정한 조합은 기록 맨 위에서 다시 찾으니 함께 기록
   saveHistory();
 }
 export function setMemo(text, e = state.entry) {
   e.memo = text.trim() ? text : "";
-  if (e.memo) delete e.keep;   // 빼 둔 조합도 메모를 쓰면 다시 기록으로 넘김
+  if (e.memo) delete e.keep;   // 예시 뽑기·기록 삭제 때의 조합도 메모를 쓰면 기록으로 넘김
 }
-// 기록 삭제: 지금 조합은 화면에 남지만 다음 뽑기 때 다시 기록으로 넘어가지 않게. 메모가 있으면 잃지 않게 남김
+// 기록 삭제: 핀 고정한 기록만 남기고 지움.
+// 지금 조합은 화면에 남지만 다음 뽑기 때 다시 기록으로 넘어가지 않게. 핀이나 메모가 있으면 잃지 않게 남김
 export function clearHistory() {
-  state.history = [];
+  state.history = state.history.filter(h => h.pin);
   const e = state.entry;
-  if (e) { e.star = false; if (!e.memo) e.keep = false; }
+  if (e && !e.pin && !e.memo) e.keep = false;
   saveHistory();
 }
 
@@ -90,9 +88,10 @@ function absorbTwist(h) {
   if (h.twist) { h.words = [...h.words, h.twist]; if (h.decks) h.decks = [...h.decks, "t"]; }
   delete h.twist;
 }
-// 예전 sample·dropped 표시를 keep으로 (예시 뽑기는 메모·★가 있었으면 남기는 쪽)
+// 예전 형식 바꾸기: ★ 후보(star)는 핀(pin)으로, sample·dropped 표시는 keep으로 (예시 뽑기는 메모·핀이 있었으면 남기는 쪽)
 function upgradeEntry(e) {
-  if (e.dropped || (e.sample && !e.memo && !e.star)) e.keep = false;
+  if ("star" in e) { if (e.star) e.pin = true; delete e.star; }
+  if (e.dropped || (e.sample && !e.memo && !e.pin)) e.keep = false;
   delete e.dropped; delete e.sample;
 }
 export function loadHistory() {
