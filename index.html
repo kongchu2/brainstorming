@@ -315,6 +315,10 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .slip .acts button { border: 1px solid var(--line); background: none; border-radius: 6px; padding: 2px 9px; font-size: 12px; cursor: pointer; color: var(--muted); }
 .slip .acts button:hover { color: var(--ink); border-color: var(--muted); }
 .slip.locked .acts .lock { background: var(--mark); border-color: var(--mark); color: #141C27; }
+/* 아이콘 버튼 (이것만 다시·고정): 글자 대신 아이콘, 이름은 title·aria-label로 */
+.slip .acts .ico-btn, .mini-btn.ico-btn { width: 28px; height: 28px; padding: 0; display: inline-grid; place-items: center; }
+.ico { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.slip.locked .lock .ico { fill: currentColor; }
 .slip.landed { animation: land .35s cubic-bezier(.2,.9,.3,1.3); }
 @keyframes land { from { transform: translateY(-6px) scale(.97); } }
 
@@ -376,6 +380,7 @@ textarea#memo::placeholder { color: var(--muted); }
   .chip-label { padding: 7px 4px 7px 12px; }
   .chip-x { padding: 7px 12px 7px 6px; }
   .slip .acts button, .mini-btn { padding: 6px 12px; }
+  .slip .acts .ico-btn, .mini-btn.ico-btn { width: 36px; height: 36px; padding: 0; }
   .slip-x, .deck-del { min-width: 36px; height: 36px; }
   .deck-step button { width: 36px; height: 36px; }
   .deck-fold { width: 32px; height: 32px; }
@@ -447,7 +452,7 @@ textarea#memo::placeholder { color: var(--muted); }
         <div class="combo-q-row">
           <p class="combo-q" id="combo-q"></p>
           <span class="combo-actions">
-            <button class="mini-btn" id="q-reroll" type="button" title="질문만 다시 뽑아요">이것만 다시</button>
+            <button class="mini-btn ico-btn" id="q-reroll" type="button" title="이것만 다시 (질문)" aria-label="질문 이것만 다시"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
             <button class="star-btn" id="star" type="button" aria-pressed="false">☆ 후보로 표시</button>
           </span>
         </div>
@@ -571,7 +576,7 @@ textarea#memo::placeholder { color: var(--muted); }
   const isSaved = e => !!e && history.some(h => h.id === e.id);
   // 기록하기를 안 눌렀어도 메모나 ★를 단 조합은 버리지 않고 기록으로 넘김
   const keepIfNoted = () => { if (entry && !isSaved(entry) && !entry.dropped && (entry.memo || entry.star)) history.unshift(entry); };
-  let spinning = false;
+  let spinning = false, spinSlots = [];   // 셔플·착지 중인 쪽지 칸. 덱 칩 하이라이트는 애니메이션이 끝난 뒤에
   // 지금 화면의 조합. 메모·별표는 여기에 붙고, 기록(history)에는 다음 뽑기 때 넘어감
   let entry = null;
   let filter = "all";
@@ -609,7 +614,7 @@ textarea#memo::placeholder { color: var(--muted); }
     setWords(d, deckWords(d).filter(x => x !== w));
   }
 
-  // 칩 ×·Backspace로 지운 키워드는 알림의 '되돌리기'로 살림
+  // 칩 ×로 지운 키워드는 알림의 '되돌리기'로 살림
   function removeWithUndo(d, w) {
     const before = { text: d.text, excluded: [...d.excluded] };
     removeWord(d, w); renderAll();
@@ -822,7 +827,7 @@ textarea#memo::placeholder { color: var(--muted); }
     const words = deckWords(d);
     d.excluded = d.excluded.filter(w => words.includes(w));
     const ex = new Set(d.excluded);
-    const hits = new Set(current.map(c => c.from + "\n" + c.word));
+    const hits = new Set(current.filter((_, i) => !spinSlots.includes(i)).map(c => c.from + "\n" + c.word));
     if (!words.length) {
       const s = document.createElement("span"); s.className = "chips-empty"; s.textContent = "아직 키워드가 없어요.";
       return [s];
@@ -848,7 +853,7 @@ textarea#memo::placeholder { color: var(--muted); }
     });
   }
 
-  // 칩 입력: Enter·쉼표로 추가, 여러 개 붙여 넣기, 빈 칸에서 Backspace는 마지막 칩 삭제
+  // 칩 입력: Enter·쉼표로 추가, 여러 개 붙여 넣기
   function bindAdd(addEl, addBtn, d) {
     const commit = () => {
       if (!addEl.value.trim()) return;
@@ -860,10 +865,6 @@ textarea#memo::placeholder { color: var(--muted); }
     addEl.addEventListener("keydown", e => {
       if (e.isComposing || e.keyCode === 229) return;   // 한글 조합 중 Enter는 무시
       if (e.key === "Enter") { e.preventDefault(); commit(); }
-      else if (e.key === "Backspace" && !addEl.value) {
-        const last = deckWords(d).pop();
-        if (last) removeWithUndo(d, last);
-      }
     });
     addEl.addEventListener("input", e => {
       if (e.isComposing) return;
@@ -892,7 +893,8 @@ textarea#memo::placeholder { color: var(--muted); }
 
   function lockBtn(item, d) {
     const lock = d.querySelector(".lock");
-    lock.textContent = item.locked ? "고정 해제" : "고정";
+    const label = item.locked ? "고정 해제" : "고정";
+    lock.title = label; lock.setAttribute("aria-label", `‘${item.word}’ ${label}`);
     lock.setAttribute("aria-pressed", String(item.locked));
     lock.onclick = () => { item.locked = !item.locked; renderSlips(); };
   }
@@ -918,10 +920,11 @@ textarea#memo::placeholder { color: var(--muted); }
     d.style.setProperty("--dot", deckColor(item.from));   // 테두리는 늘 덱 색, 덱 이름·점은 여러 덱이 섞일 때만
     d.innerHTML = `<div class="meta"><span class="${showSrc ? "src" : ""}"></span><span>${item.locked ? "고정됨" : ""}</span></div>
       <div class="word"></div>
-      <div class="acts"><button type="button" class="lock"></button><button type="button" class="reroll">이것만 다시</button></div>`;
+      <div class="acts"><button type="button" class="lock ico-btn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></button><button type="button" class="reroll ico-btn" title="이것만 다시"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button></div>`;
     d.querySelector(".meta span").textContent = showSrc ? deckName(item.from) : `쪽지 ${i + 1}`;
     d.querySelector(".word").textContent = item.word;
     lockBtn(item, d);
+    d.querySelector(".reroll").setAttribute("aria-label", `‘${item.word}’ 이것만 다시`);
     d.querySelector(".reroll").onclick = () => draw([i]);
     addCloseBtn(d, `‘${item.word}’ 이번 조합에서 빼기`, () => {
       if (spinning) return;
@@ -1090,12 +1093,13 @@ textarea#memo::placeholder { color: var(--muted); }
       current = next; spinning = false;
       record();
       renderSlips(targets); renderHistory();
+      if (spinSlots.length) setTimeout(() => { spinSlots = []; renderDecks(); }, 350);   // 착지(.landed) 끝나면
       if (exhausted) toast("아직 안 나온 조합을 찾지 못해 이미 나온 조합을 보여줘요");
     };
     if (reduced()) return finish();
 
     // 짧은 셔플 연출: 칸마다 시간차를 두고 멈춤
-    spinning = true;
+    spinning = true; spinSlots = targets;
     current = next.map(c => ({ ...c }));
     renderSlips();
     const els = [...slipsEl.children];
