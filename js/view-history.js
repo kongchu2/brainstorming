@@ -1,18 +1,21 @@
-// 기록 목록: 전체(최근 12개, 더 보기) / 메모 / ★ 후보 거르기, 기록 삭제
+// 기록 목록: 핀 고정한 기록은 늘 맨 위. 전체(핀 + 최근 12개, 더 보기) / 핀 거르기, 기록 삭제(핀은 남김)
 import { state } from "./state.js";
-import { $, toast } from "./util.js";
-import { switchEntry, showEntry, toggleStar, clearHistory } from "./entry.js";
-import { newQuestion } from "./view-stage.js";
+import { $, toast, ICON_PIN, ICON_PENCIL } from "./util.js";
+import { switchEntry, showEntry, togglePin, clearHistory, setMemo, saveHistory } from "./entry.js";
 import { render } from "./render.js";
 
 const SHORT = 12;
 let filter = "all";
 let showAll = false;   // 전체에서 12개 넘는 기록 펼치기
+let memoOpen = null;   // 메모 칸을 펼친 기록의 id (기록을 열지 않고 뒤늦게 메모 남기기)
+let memoTimer;
 
+// 핀 고정한 기록을 맨 위로 (각 묶음 안에서는 최근 순)
+const pinned = () => state.history.filter(h => h.pin);
+const unpinned = () => state.history.filter(h => !h.pin);
 function filtered() {
-  if (filter === "memo") return state.history.filter(h => h.memo);
-  if (filter === "star") return state.history.filter(h => h.star);
-  return showAll ? state.history : state.history.slice(0, SHORT);
+  if (filter === "pin") return pinned();
+  return [...pinned(), ...(showAll ? unpinned() : unpinned().slice(0, SHORT))];
 }
 
 export function renderHistory() {
@@ -23,10 +26,11 @@ export function renderHistory() {
   if (!items.length) {
     const li = document.createElement("li");
     li.className = "history-empty";
-    li.textContent = filter === "star" ? "★ 후보로 표시한 조합이 아직 없어요." : "메모를 남긴 조합이 아직 없어요.";
+    li.textContent = "핀 고정한 조합이 아직 없어요.";
     items.push(li);
   }
-  if (filter === "all" && history.length > SHORT) items.push(moreButton(history.length - SHORT));
+  const rest = unpinned().length;
+  if (filter === "all" && rest > SHORT) items.push(moreButton(rest - SHORT));
   $("history-list").replaceChildren(...items);
 }
 
@@ -43,13 +47,44 @@ function historyItem(h) {
     open.append(m);
   }
   open.onclick = () => openFromHistory(h);
-  const star = document.createElement("button");
-  star.type = "button"; star.className = "h-star"; star.textContent = h.star ? "★" : "☆";
-  star.setAttribute("aria-pressed", String(!!h.star));
-  star.setAttribute("aria-label", h.star ? "후보에서 빼기" : "후보로 표시");
-  star.onclick = () => { toggleStar(h); render(); toast(h.star ? "후보로 표시했어요" : "후보에서 뺐어요"); };
-  li.append(open, star);
+  if (h.pin) li.className = "pinned";
+  // 메모 남기기: 누르면 이 줄 아래에 메모 칸이 펼쳐짐
+  const editing = memoOpen === h.id;
+  const memoBtn = document.createElement("button");
+  memoBtn.type = "button"; memoBtn.className = "h-memo"; memoBtn.innerHTML = ICON_PENCIL;
+  memoBtn.setAttribute("aria-expanded", String(editing));
+  memoBtn.setAttribute("aria-label", h.memo ? "메모 고치기" : "메모 남기기");
+  memoBtn.title = h.memo ? "메모 고치기" : "메모 남기기";
+  memoBtn.onclick = () => {
+    memoOpen = editing ? null : h.id;
+    renderHistory();
+    if (!editing) $("history-list").querySelector(".h-memo-edit")?.focus();
+  };
+  const pin = document.createElement("button");
+  pin.type = "button"; pin.className = "h-pin"; pin.innerHTML = ICON_PIN;
+  pin.setAttribute("aria-pressed", String(!!h.pin));
+  pin.setAttribute("aria-label", h.pin ? "핀 빼기" : "핀 고정");
+  pin.title = h.pin ? "핀 빼기" : "핀 고정 (기록 맨 위에 남고, 기록 삭제에도 안 지워져요)";
+  pin.onclick = () => { togglePin(h); render(); toast(h.pin ? "핀 고정했어요. 기록 맨 위에 남아요" : "핀을 뺐어요"); };
+  li.append(open, memoBtn, pin);
+  if (editing) li.append(memoEditor(h));
   return li;
+}
+
+// 기록 줄 아래 메모 칸: 입력은 바로 그 기록에 넣고, 잠깐 멈추면 저장. 칸을 벗어나면(change) 화면에 반영
+function memoEditor(h) {
+  const ta = document.createElement("textarea");
+  ta.className = "h-memo-edit"; ta.value = h.memo ?? ""; ta.rows = 2;
+  ta.placeholder = "이 조합에서 떠오른 생각을 적어 두세요.";
+  ta.setAttribute("aria-label", `‘${h.words.join(", ")}’ 메모`);
+  ta.addEventListener("input", () => {
+    setMemo(ta.value, h);
+    clearTimeout(memoTimer);
+    memoTimer = setTimeout(saveHistory, 400);
+  });
+  ta.addEventListener("change", () => { clearTimeout(memoTimer); saveHistory(); render(); });
+  ta.addEventListener("keydown", e => { if (e.key === "Escape") { memoOpen = null; ta.blur(); renderHistory(); } });
+  return ta;
 }
 
 // '더 보기 (N개)' / 펼친 뒤엔 맨 아래 '접기'
@@ -76,7 +111,6 @@ function openFromHistory(h) {
   if (state.spinning) return;   // 셔플이 끝나면 뽑은 조합으로 덮이므로 막음
   switchEntry(h);
   showEntry(true);
-  if (!$("combo-q").textContent) newQuestion();
   render();
   toast("이전 조합을 불러왔어요");
 }
@@ -93,15 +127,18 @@ const showPanel = open => {
 $("history-clear-open").onclick = () => {
   const open = $("history-clear-panel").hidden;
   if (open) {
-    const kept = state.history.filter(h => h.memo || h.star).length;
-    $("history-clear-note").textContent = `기록 ${state.history.length}개가 지워져요.`
-      + (kept ? ` 메모나 ★가 있는 ${kept}개도 포함돼요.` : "") + " 지금 화면의 조합은 남아요.";
+    const gone = unpinned(), memos = gone.filter(h => h.memo).length, pins = pinned().length;
+    $("history-clear-note").textContent = !gone.length ? "핀 고정한 기록만 있어서 지울 기록이 없어요."
+      : `기록 ${gone.length}개가 지워져요.` + (memos ? ` 메모가 있는 ${memos}개도 포함돼요.` : "")
+        + (pins ? ` 핀 고정한 ${pins}개는 남아요.` : "") + " 지금 화면의 조합도 남아요.";
+    $("history-clear-go").disabled = !gone.length;
   }
   showPanel(open);
 };
 $("history-clear-cancel").onclick = () => showPanel(false);
 $("history-clear-go").onclick = () => {
+  const pins = pinned().length;
   clearHistory(); filter = "all";
   showPanel(false);
-  render(); toast("기록을 모두 지웠어요");
+  render(); toast(pins ? "핀 고정한 기록만 남기고 지웠어요" : "기록을 모두 지웠어요");
 };

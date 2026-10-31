@@ -1,20 +1,17 @@
-// 오른쪽 결과 화면: 뽑기 줄 버튼, 쪽지, 이번 조합(질문·★·메모·기록하기)
+// 오른쪽 결과 화면: 뽑기 줄 버튼, 쪽지, 이번 조합(메모·핀 고정)
 import { state } from "./state.js";
-import { $, toast, rand, ICON_REROLL, reduced } from "./util.js";
-import { drawDecks, deckColor, deckName } from "./decks.js";
-import { isSaved, remember, forget, toggleStar, setMemo, removeSlips, saveHistory } from "./entry.js";
-import { PROMPTS } from "./samples.js";
+import { $, toast, ICON_REROLL, ICON_PIN, reduced } from "./util.js";
+import { drawDecks, deckColor, deckName, blocker } from "./decks.js";
+import { togglePin, setMemo, removeSlips, saveHistory } from "./entry.js";
 import { draw } from "./draw.js";
 import { render } from "./render.js";
 import { renderHistory } from "./view-history.js";
 import { syncUrl } from "./share.js";
 
-const slipsEl = $("slips"), memoEl = $("memo"), questionEl = $("combo-q");
-const ICON_PIN = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>';
+const slipsEl = $("slips"), memoEl = $("memo");
 
 export function renderControls() {
   $("draw").disabled = state.spinning || !drawDecks().length;
-  $("copy").disabled = state.spinning || !state.current.length;
   $("share").disabled = state.spinning || !drawDecks().length;
   $("opt-unique").setAttribute("aria-pressed", String(state.skipSeen));
 }
@@ -28,6 +25,11 @@ export function buildSlips(landed = []) {
     return s;
   }));
   $("empty-stage").hidden = state.current.length > 0;
+  // 빈 화면 안내는 지금 상황에 맞게 (덱이 어디 있는지는 화면 폭마다 달라서 '왼쪽' 같은 말은 안 씀)
+  $("empty-hint").textContent = {
+    off: "뽑을 덱을 켜고 ‘뽑기’를 누르세요.",
+    empty: "덱에 키워드를 넣고 ‘뽑기’를 누르세요.",
+  }[blocker()] ?? "‘뽑기’를 누르면 켠 덱마다 쪽지가 나와요.";
 }
 
 // 쪽지 한 장. innerHTML에는 고정 문자열만, 사용자가 쓴 글은 textContent로
@@ -69,37 +71,20 @@ export function renderCombo() {
     clearTimeout(memoTimer);
     memoEl.value = e?.memo ?? "";
     $("memo-state").textContent = "";
+  } else if (document.activeElement !== memoEl && memoEl.value !== (e?.memo ?? "")) {
+    memoEl.value = e?.memo ?? "";   // 기록 목록에서 같은 조합의 메모를 고친 경우
   }
-  const star = $("star"), save = $("save-entry"), saved = isSaved(e);
-  star.hidden = save.hidden = !e;
-  star.setAttribute("aria-pressed", String(!!e?.star));
-  star.textContent = e?.star ? "★ 후보" : "☆ 후보로 표시";
-  save.classList.toggle("saved", saved);
-  save.textContent = saved ? "✓ 기록됨" : "기록하기";
-  save.title = saved ? "한 번 더 누르면 기록에서 빼요" : "";
+  const pin = $("pin");
+  pin.hidden = !e;
+  pin.setAttribute("aria-pressed", String(!!e?.pin));
+  pin.innerHTML = ICON_PIN + (e?.pin ? "핀 고정됨" : "핀 고정");
 }
 
-// 질문을 새로 고름 (지금 질문과 다른 것으로)
-export function newQuestion() {
-  const l = PROMPTS.filter(p => p !== questionEl.textContent);
-  questionEl.textContent = l[rand(l.length)];
-}
-$("q-reroll").innerHTML = ICON_REROLL;
-$("q-reroll").onclick = newQuestion;
-
-$("star").onclick = () => {
+$("pin").onclick = () => {
   const e = state.entry;
   if (!e) return;
-  toggleStar(e); render();
-  toast(e.star ? "후보로 표시했어요" : "후보에서 뺐어요");
-};
-// 기록하기 / ✓ 기록됨(다시 누르면 기록에서 뺌)
-$("save-entry").onclick = () => {
-  const e = state.entry;
-  if (!e) return;
-  if (isSaved(e)) { forget(e); toast("기록에서 뺐어요"); }
-  else { remember(e); toast("기록에 남겼어요"); }
-  saveHistory(); render();
+  togglePin(e); render();
+  toast(e.pin ? "핀 고정했어요. 기록 맨 위에 남아요" : "핀을 뺐어요");
 };
 // 메모: 입력은 바로 지금 조합에 넣고, 저장은 잠깐 멈췄을 때
 memoEl.addEventListener("input", () => {

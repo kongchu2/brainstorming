@@ -1,10 +1,9 @@
 // 시작점: 저장값을 불러와 첫 화면을 그리고, 화면 위쪽 버튼(뽑기 줄·테마·초기화)을 연결
 import { state } from "./state.js";
 import { $, store, KEEP, framed, reduced, toast } from "./util.js";
-import { loadDecks, saveDecks, drawDecks } from "./decks.js";
-import { loadHistory, newEntry, switchEntry, showEntry, saveHistory, setMemo } from "./entry.js";
+import { loadDecks, saveDecks, drawDecks, wipeDecks } from "./decks.js";
+import { loadHistory, newEntry, switchEntry, showEntry, saveHistory, setMemo, removeSlips } from "./entry.js";
 import { readSharedLink, shareUrl, syncUrl } from "./share.js";
-import { newQuestion } from "./view-stage.js";
 import { draw } from "./draw.js";
 import { render } from "./render.js";
 
@@ -30,14 +29,14 @@ if (state.current.length) {
     saveHistory();
   } else switchEntry(newEntry({ memo: sharedMemo }));
 }
-if (state.entry) { showEntry(); newQuestion(); }   // 새로고침해도 지금 조합과 메모가 그대로
+if (state.entry) showEntry();   // 새로고침해도 지금 조합과 메모가 그대로
 render();
 // 처음 방문이면 무엇을 하는 도구인지 보이도록 예시로 한 번 뽑아 둠. 다녀간 사용자가 쪽지를 다 뺀 상태면 빈 화면 그대로
 if (!state.entry && freshStart && sharedMemo === null && drawDecks().length) draw(undefined, true);
 
 // ── 뽑기 줄 ──
 if (!/Mac|iPhone|iPad/.test(navigator.platform)) $("draw-key").textContent = "Ctrl+Enter";
-$("share").hidden = framed;
+$("share").hidden = framed;   // Artifact 안에서는 주소가 전달되지 않으므로 숨김
 $("draw").onclick = () => draw();
 // Cmd/Ctrl+Enter로 뽑기 (메모 같은 textarea 안에서는 안 먹음)
 document.addEventListener("keydown", e => {
@@ -47,15 +46,17 @@ $("opt-unique").onclick = () => {
   state.skipSeen = !state.skipSeen; store.set("skipSeen", state.skipSeen); render();
   toast(state.skipSeen ? "기록에 있는 조합은 다시 나오지 않아요" : "이미 나온 조합도 다시 나올 수 있어요");
 };
-$("copy").onclick = async () => {
-  const text = state.current.map(c => c.word).join(", ");
-  try { await navigator.clipboard.writeText(text); toast("복사했어요: " + text); }
-  catch { toast("이 환경에서는 복사할 수 없어요"); }
-};
+// 덱 공유: 공유 링크를 복사하고, 버튼 글자를 잠깐 '링크 복사됨!'으로 바꿔 알림 (실패할 때만 아래 알림)
+let shareTimer;
 $("share").onclick = async () => {
   syncUrl();
-  try { await navigator.clipboard.writeText(location.origin + shareUrl()); toast("공유 링크를 복사했어요"); }
-  catch { toast("주소창의 링크를 복사해 공유하세요"); }
+  const b = $("share");
+  try {
+    await navigator.clipboard.writeText(location.origin + shareUrl());
+    b.textContent = "링크 복사됨!";
+    clearTimeout(shareTimer);
+    shareTimer = setTimeout(() => { b.textContent = "덱 공유"; }, 1600);
+  } catch { toast("주소창의 링크를 복사해 공유하세요"); }
 };
 
 // 애니메이션 최소화: 저장값이 없으면 OS 설정을 따름. 고른 값이 OS 설정과 같으면 저장값을 지워 다시 OS를 따르게.
@@ -84,14 +85,32 @@ document.querySelectorAll("#theme-seg button").forEach(b => b.onclick = () => {
   store.set("theme", b.dataset.themeChoice); applyTheme(b.dataset.themeChoice);
 });
 
-// ── 초기화: KEEP만 남기고 저장값을 모두 지운 뒤, 주소의 공유 내용 없이 다시 엶 ──
-const showReset = open => {
-  $("reset-panel").hidden = !open;
-  $("reset-open").setAttribute("aria-expanded", String(open));
-};
-$("reset-open").onclick = () => showReset($("reset-panel").hidden);
-$("reset-cancel").onclick = () => showReset(false);
+// ── 초기화 / 덱 전부 삭제 (페이지 안 확인 창. 하나를 열면 다른 하나는 닫힘) ──
+const panels = { reset: ["reset-open", "reset-panel"], wipe: ["wipe-open", "wipe-panel"] };
+function showPanel(name) {   // name이 없으면 모두 닫음
+  for (const [key, [btn, panel]] of Object.entries(panels)) {
+    const open = key === name;
+    $(panel).hidden = !open;
+    $(btn).setAttribute("aria-expanded", String(open));
+  }
+}
+const toggle = name => () => showPanel($(panels[name][1]).hidden ? name : null);
+$("reset-open").onclick = toggle("reset");
+$("wipe-open").onclick = toggle("wipe");
+$("reset-cancel").onclick = $("wipe-cancel").onclick = () => showPanel(null);
+
+// 초기화: KEEP만 남기고 저장값을 모두 지운 뒤, 주소의 공유 내용 없이 다시 엶
 $("reset-go").onclick = () => {
   try { Object.keys(localStorage).filter(k => k.startsWith("kwdraw:") && !KEEP.has(k)).forEach(k => localStorage.removeItem(k)); } catch {}
   if (framed) location.reload(); else location.replace(location.pathname);
+};
+// 덱 전부 삭제: 빈 덱 두 개로. 지금 쪽지는 덱이 없어지니 기록으로 넘기고 비움
+$("wipe-go").onclick = () => {
+  if (state.spinning) return;
+  removeSlips(() => true);
+  wipeDecks();
+  showPanel(null);
+  render();
+  $("deck-list").querySelector(".add-input")?.focus();
+  toast("덱을 모두 지웠어요");
 };

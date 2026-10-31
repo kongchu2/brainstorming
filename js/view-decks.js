@@ -3,7 +3,7 @@
 import { state } from "./state.js";
 import { $, toast } from "./util.js";
 import {
-  saveDecks, deckWords, usable, drawDecks, want, deckColor,
+  saveDecks, deckWords, usable, drawDecks, want, deckColor, blocker,
   addWords, removeWord, toggleExcluded, newDeck, deleteDeck,
 } from "./decks.js";
 import { removeSlips } from "./entry.js";
@@ -34,7 +34,7 @@ export function renderDecks() {
   // 덱 목록 위 제목 줄: '덱 N개' · '이번에 N장 뽑아요'
   const total = drawDecks().reduce((s, d) => s + want(d), 0);
   $("decks-title").textContent = `덱 ${state.decks.length}개`;
-  $("decks-note").textContent = total ? `이번에 ${total}장 뽑아요` : "켜진 덱이 없어요";
+  $("decks-note").textContent = { off: "켜진 덱이 없어요", empty: "켠 덱에 키워드가 없어요" }[blocker()] ?? `이번에 ${total}장 뽑아요`;
 }
 
 // 지금 쪽지에 나온 키워드 ('덱 id\n키워드'). 셔플·착지 중인 칸은 빼 둠 (결과를 미리 알려 주지 않게)

@@ -12,6 +12,8 @@ export const deckWords = d => d ? uniq(splitRaw(d.text)) : [];
 export const usable = d => { const ex = new Set(d?.excluded ?? []); return deckWords(d).filter(w => !ex.has(w)); };
 // 켜져 있고 뽑을 키워드가 있는 덱
 export const drawDecks = () => state.decks.filter(d => d.use && usable(d).length);
+// 뽑을 수 없는 이유: "off" 켠 덱이 없음 / "empty" 켠 덱에 뽑을 키워드가 없음 / null 뽑을 수 있음
+export const blocker = () => !state.decks.some(d => d.use) ? "off" : !drawDecks().length ? "empty" : null;
 // 그 덱에서 실제로 뽑을 장 수
 export const want = d => Math.min(Math.max(1, d.n), usable(d).length);
 // 덱 색은 순서대로 --c0 ~ --c4 반복
@@ -52,6 +54,11 @@ export function newDeck() {
   const d = { id: newId(), name: `새 덱 ${k}`, text: "", excluded: [], use: true, n: 1 };
   state.decks.push(d); saveDecks();
   return d;
+}
+// 덱 전부 삭제: 빈 덱 두 개('새 덱 1', '새 덱 2', 켠 채로)만 남김
+export function wipeDecks() {
+  state.decks = [];
+  newDeck(); newDeck();
 }
 export function deleteDeck(d) {
   if (state.decks.length <= 1) return;
