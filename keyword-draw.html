@@ -6,8 +6,15 @@
 <script>
   // 저장된 테마를 그리기 전에 먼저 적용해 깜빡임을 막음
   try { const t = JSON.parse(localStorage.getItem("kwdraw:theme")); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
-  // 애니메이션 최소화: 저장값이 없으면 OS 설정(prefers-reduced-motion)을 따름
-  try { const m = JSON.parse(localStorage.getItem("kwdraw:motion")); if (m === "reduce" || (m !== "full" && matchMedia("(prefers-reduced-motion: reduce)").matches)) document.documentElement.dataset.motion = "reduce"; } catch {}
+  // 애니메이션 최소화: 'reduce'/'full'로 고른 값이 없으면 OS 설정(prefers-reduced-motion)을 따름.
+  // 판단은 여기 한 곳에서만 하고, 본문 스크립트(스위치·OS 설정 변경)도 이 함수를 부름
+  window.kwdrawMotion = choice => {
+    if (choice === undefined) try { choice = JSON.parse(localStorage.getItem("kwdraw:motion")); } catch {}
+    const on = choice === "reduce" || (choice !== "full" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    if (on) document.documentElement.dataset.motion = "reduce"; else delete document.documentElement.dataset.motion;
+    return on;
+  };
+  window.kwdrawMotion();
 </script>
 <style>
 /* Layout: 왼쪽은 키워드를 넣는 '통'(한 통 또는 두 통), 오른쪽은 뽑힌 쪽지가 놓이는 '판'. 좁은 화면에선 위아래로 쌓임. */
@@ -87,11 +94,6 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 
 /* ── 통 (입력) ── */
 .pools { display: grid; gap: 14px; min-width: 0; }
-.pools-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-.pool { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 12px; min-width: 0; }
-.pool-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.pool-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.pool-title .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dot, var(--accent)); flex: none; }
 .foot-right { display: flex; gap: 14px; margin-left: auto; }
 .toggle.mini { padding: 4px; border: 0; background: none; }
 .reset-zone { display: grid; gap: 8px; }
@@ -106,20 +108,6 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .reset-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .danger { height: 40px; padding: 0 14px; border-radius: 10px; border: 0; background: var(--danger); color: var(--danger-ink); cursor: pointer; font-size: 13.5px; font-weight: 600; }
 .danger:disabled { opacity: .4; cursor: default; }
-.pool-fixed { font-family: var(--f-display); font-size: 20px; line-height: 1.2; color: var(--accent); }
-.pool-name {
-  font-family: var(--f-display); font-size: 20px; line-height: 1.2; width: 9ch; min-width: 0;
-  border: 0; border-bottom: 1.5px dashed var(--line); background: none; padding: 0 0 1px; border-radius: 0;
-}
-.pool-name:focus { border-bottom-color: var(--accent); outline: none; }
-.pool-head .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pool textarea {
-  width: 100%; min-height: 120px; resize: vertical;
-  background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
-  padding: 12px 14px; line-height: 1.6;
-}
-.pool textarea::placeholder { color: var(--muted); }
-.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px; }
 .chip {
   display: inline-flex; align-items: center;
@@ -186,64 +174,26 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .deck-step b { min-width: 2.6em; text-align: center; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .deck-add { justify-self: start; border: 1px dashed var(--line); background: none; color: var(--muted); border-radius: 10px; padding: 6px 12px; font-size: 13.5px; cursor: pointer; }
 .deck-add:hover { color: var(--ink); border-color: var(--muted); }
-.danger-link { color: var(--danger); }
-.danger-link:hover { color: var(--danger); }
-.pool-name { width: 14ch; }
 
-/* 새 덱 이름 입력 */
-.presets { display: grid; gap: 8px; min-width: 0; }
-.presets-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.presets-note { font-size: 12px; color: var(--muted); }
-.preset-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.preset { display: inline-flex; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; font-size: 13.5px; max-width: 100%; }
-.preset:hover { border-color: var(--muted); }
-.preset.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.preset-open { display: inline-flex; align-items: baseline; gap: 6px; border: 0; background: none; padding: 6px 12px; cursor: pointer; border-radius: 10px; min-width: 0; }
-.preset .preset-open:not(:last-child) { padding-right: 4px; border-radius: 10px 0 0 10px; }
-.preset-open .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.preset.is-active .preset-open { font-weight: 600; cursor: default; }
-.preset small { font-size: 11px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
-.preset-x { border: 0; background: none; padding: 6px 10px 6px 4px; color: var(--muted); cursor: pointer; border-radius: 0 10px 10px 0; line-height: 1; }
-.preset-x:hover { color: var(--danger); }
-.preset-add { border: 1px dashed var(--line); background: none; color: var(--muted); border-radius: 10px; padding: 6px 12px; font-size: 13.5px; cursor: pointer; }
-.preset-add:hover { color: var(--ink); border-color: var(--muted); }
-.preset-new { display: flex; gap: 6px; }
-.preset-new .mini-btn { padding: 0 12px; }
-.chip .cnt { font-size: 10.5px; color: var(--muted); margin-left: 5px; font-variant-numeric: tabular-nums; }
 .chip.off { background: var(--chip-off); color: var(--muted); text-decoration: line-through; opacity: .7; }
 .chip.hit { background: var(--mark-soft); border-color: var(--mark); }
 .chips-empty { color: var(--muted); font-size: 13px; }
 .pool-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.linkbtn { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.linkbtn:hover { color: var(--ink); }
+.linkbtn { background: none; border: 0; padding: 3px 6px; margin: -3px -6px; border-radius: 6px; color: var(--muted); font-size: 12.5px; font-weight: 500; cursor: pointer; }
+.linkbtn:hover:not(:disabled) { color: var(--ink); background: var(--chip-off); }
 .linkbtn:disabled { opacity: .4; cursor: default; }
-.example-tag { font-size: 11px; background: var(--mark-soft); color: var(--ink); padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
 
 /* ── 판 (결과) ── */
-.stage { display: grid; gap: 16px; min-width: 0; container-type: inline-size; }
-/* 위쪽 한 줄: [뽑기] [이미 나온 조합 제외] ··· [결과 복사] [링크 공유] */
-.controls { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; }
-/* 오른쪽 열이 좁으면: 뽑기가 남는 폭을 채우고 복사·공유는 옆에, 토글은 다음 줄로 */
-@container (max-width: 600px) {
-  .controls { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px 8px; }
-  .controls .spacer { display: none; }
-  .controls .opts { grid-row: 2; grid-column: 1 / -1; justify-self: start; }
-  .draw { justify-content: center; padding: 0 16px; }
-  .controls .ghost { padding: 0 12px; }
-}
+.stage { display: grid; gap: 16px; min-width: 0; }
+/* 뽑기 줄: [뽑기(남는 폭)] [결과 복사] [링크 공유] / 다음 줄에 [이미 나온 조합 제외] [애니메이션 최소화] */
+.controls { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px 8px; }
+.controls:has(#share[hidden]) { grid-template-columns: minmax(0, 1fr) auto; }   /* Artifact 안: 링크 공유가 없으면 빈칸 없이 */
+.controls .opts { grid-row: 2; grid-column: 1 / -1; justify-self: start; }
+.controls .draw { justify-content: center; }
 /* 휴대폰: 단축키 표시 숨김 */
 @media (max-width: 560px) { .draw kbd { display: none; } }
 /* 넓은 화면: 뽑기 줄 위쪽 끝을 첫 덱 카드 위쪽 끝에 맞춤 (왼쪽 '덱 N개' 줄 높이 + 간격만큼 내림) */
 @media (min-width: 821px) { .stage { padding-top: 33px; } }
-.steppers { display: flex; flex-wrap: wrap; gap: 8px; }
-.stepper { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.stepper button { width: 38px; height: 48px; border: 0; background: none; font-size: 20px; cursor: pointer; }
-.stepper button:hover:not(:disabled) { background: var(--paper); }
-.stepper button:disabled { opacity: .35; cursor: default; }
-.stepper .n { display: inline-flex; align-items: baseline; justify-content: center; gap: 2px; min-width: 72px; padding: 0 4px; white-space: nowrap; }
-.stepper .n b { font-family: var(--f-display); font-weight: 400; font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; }
-.stepper .n span { font-size: 14px; }
-.stepper .n .pre { color: var(--muted); max-width: 6em; overflow: hidden; text-overflow: ellipsis; margin-right: 4px; }
 /* 뽑기 버튼 (기록하기도 모양을 같이 쓰되 아래에서 테두리 버튼으로 낮춤) */
 .draw, .save-btn {
   border-radius: 12px; cursor: pointer;
@@ -261,7 +211,6 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 }
 .draw:disabled { opacity: .45; cursor: default; }
 .draw kbd { font-family: var(--f-body); font-size: 11px; font-variant-numeric: tabular-nums; opacity: .75; border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; }
-.controls .spacer { flex: 1; }
 .ghost { height: 40px; padding: 0 14px; white-space: nowrap; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-size: 13.5px; }
 .ghost:hover:not(:disabled) { border-color: var(--muted); }
 .ghost:disabled { opacity: .4; cursor: default; }
@@ -284,12 +233,7 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
   position: relative; background-color: var(--surface); border: 1.5px solid var(--dot, var(--line)); border-radius: 6px;
   min-height: 132px; padding: 16px 16px 12px; display: grid; grid-template-rows: auto 1fr auto; gap: 6px;
   box-shadow: var(--shadow);
-  /* 쪽지 위쪽의 절취선 */
-  background-image: radial-gradient(circle at 6px 0, var(--paper) 3.5px, transparent 4px);
-  background-size: 14px 8px; background-repeat: repeat-x; background-position: 0 0;
 }
-.slip:nth-child(3n+1) { transform: rotate(-.6deg); }
-.slip:nth-child(3n+2) { transform: rotate(.5deg); }
 .slip.locked { border-color: var(--mark); box-shadow: 0 0 0 2px var(--mark-soft), var(--shadow); }
 .slip-x {
   position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border: 0; border-radius: 7px;
@@ -300,7 +244,6 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .slip .meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .slip .src { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slip .src::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--accent)); flex: none; }
-.slip.from-b .src::before { background: var(--mark); }
 .slip .word {
   font-family: var(--f-display); font-size: clamp(30px, 3.4vw, 40px); line-height: 1.1;
   align-self: center; overflow-wrap: anywhere; text-wrap: balance;
@@ -332,7 +275,7 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .mini-btn { flex: none; border: 1px solid var(--line); background: none; border-radius: 6px; padding: 2px 9px; font-size: 12px; cursor: pointer; color: var(--muted); }
 .mini-btn:hover { color: var(--ink); border-color: var(--muted); }
 
-/* 메모: 줄 노트 느낌, 줄 간격 = line-height */
+/* 메모 */
 .memo { display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 4px; }
 .memo-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .memo-state { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -342,8 +285,6 @@ textarea#memo {
   border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px;
   line-height: var(--lh); font-size: 14.5px;
   background-color: var(--paper);
-  background-image: linear-gradient(to bottom, transparent calc(var(--lh) - 1px), var(--line) calc(var(--lh) - 1px));
-  background-size: 100% var(--lh); background-position: 0 6px; background-attachment: local;
 }
 textarea#memo::placeholder { color: var(--muted); }
 
@@ -384,7 +325,7 @@ textarea#memo::placeholder { color: var(--muted); }
 .toast { display: flex; align-items: center; gap: 12px; }
 .toast button { border: 0; background: none; padding: 2px 0; color: var(--mark); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
-/* 애니메이션 최소화 (헤더 스위치, 기본은 OS 설정을 따름) */
+/* 애니메이션 최소화 (뽑기 줄의 스위치, 기본은 OS 설정을 따름) */
 :root[data-motion="reduce"] *, :root[data-motion="reduce"] ::before, :root[data-motion="reduce"] ::after { animation: none !important; transition: none !important; }
 :root[data-motion="reduce"] .draw, :root[data-motion="reduce"] .save-btn { transform: none !important; }
 </style>
@@ -417,7 +358,7 @@ textarea#memo::placeholder { color: var(--muted); }
         <button class="reset-btn" id="reset-open" type="button" aria-expanded="false" aria-controls="reset-panel">↺ 처음 상태로 초기화</button>
         <div class="reset-panel" id="reset-panel" hidden>
           <b>처음 상태로 되돌릴까요?</b>
-          <p class="reset-desc">저장한 덱, 뽑을 장 수·토글 설정, 지금 화면의 조합과 메모, 주소에 담긴 공유 내용이 지워져요. 지난 뽑기 기록과 테마는 남아요.</p>
+          <p class="reset-desc">저장한 덱, 뽑을 장 수·토글 설정, 지금 화면의 조합과 메모, 주소에 담긴 공유 내용이 지워져요. 지난 뽑기 기록, 테마, 애니메이션 최소화 설정은 남아요.</p>
           <div class="reset-actions">
             <button class="danger" id="reset-go" type="button">초기화</button>
             <button class="ghost" id="reset-cancel" type="button">취소</button>
@@ -433,7 +374,6 @@ textarea#memo::placeholder { color: var(--muted); }
           <button class="toggle" id="opt-unique" type="button" aria-pressed="true">이미 나온 조합 제외<span class="sw"></span></button>
           <button class="toggle" id="opt-motion" type="button" aria-pressed="false">애니메이션 최소화<span class="sw"></span></button>
         </span>
-        <span class="spacer"></span>
         <button class="ghost" id="copy" type="button" disabled>결과 복사</button>
         <button class="ghost" id="share" type="button">링크 공유</button>
       </div>
@@ -445,7 +385,7 @@ textarea#memo::placeholder { color: var(--muted); }
         <div class="combo-q-row">
           <p class="combo-q" id="combo-q"></p>
           <span class="combo-actions">
-            <button class="mini-btn ico-btn" id="q-reroll" type="button" title="이것만 다시 (질문)" aria-label="질문 이것만 다시"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
+            <button class="mini-btn ico-btn" id="q-reroll" type="button" title="이것만 다시 (질문)" aria-label="질문 이것만 다시"></button>
             <button class="star-btn" id="star" type="button" aria-pressed="false">☆ 후보로 표시</button>
           </span>
         </div>
@@ -454,7 +394,7 @@ textarea#memo::placeholder { color: var(--muted); }
             <label class="label" for="memo">메모</label>
             <span class="memo-state" id="memo-state" aria-live="polite"></span>
           </div>
-          <textarea id="memo" placeholder="이 조합에서 떠오른 생각을 적어 두세요. 메모를 남긴 조합은 기록에도 남아요."></textarea>
+          <textarea id="memo" placeholder="이 조합에서 떠오른 생각을 적어 두세요."></textarea>
         </div>
         <button class="save-btn" id="save-entry" type="button">기록하기</button>
       </div>
@@ -468,7 +408,6 @@ textarea#memo::placeholder { color: var(--muted); }
               <button type="button" data-filter="memo" aria-pressed="false">메모</button>
               <button type="button" data-filter="star" aria-pressed="false">★ 후보</button>
             </span>
-            <button class="linkbtn" id="copy-list" type="button">기록 복사</button>
             <button class="linkbtn" id="history-clear-open" type="button" aria-expanded="false" aria-controls="history-clear-panel">기록 삭제</button>
           </span>
         </div>
@@ -489,8 +428,9 @@ textarea#memo::placeholder { color: var(--muted); }
 
 <script>
 (() => {
-  const SAMPLE_A = "커피, 우주, 도서관, 고양이, 비 오는 날, 지하철, 편지, 레트로 게임\n식물 키우기, 할머니 레시피, 야간 버스, 타이머, 지도, 소음, 퍼즐\n중고 거래, 사진관, 수면, 도시 산책, 손글씨";
-  const SAMPLE_B = "구독 서비스, 지도 앱, 보드게임, 팝업 스토어, 라디오, 우편, 챗봇\n동호회, DIY 키트, 알림 한 줄, 동네 축제, 대여점, 오디오 가이드, 스티커";
+  // 예시 덱은 서비스·사이드 프로젝트를 구상하는 사람 기준. 덱끼리 같은 말이 겹치지 않게 할 것
+  const SAMPLE_A = "출근길, 이사, 반려견 산책, 냉장고, 영수증, 자취 요리, 헬스장, 택배\n회의, 육아, 분리수거, 여행 짐 싸기, 동네 맛집, 독서, 가계부, 손님 초대\n병원 대기, 주차, 퇴근 후 2시간, 옷장 정리, 단골 가게, 공부 계획";
+  const SAMPLE_B = "모바일 앱, 웹사이트, 브라우저 확장, 챗봇, 뉴스레터, 오프라인 가게, 팝업 스토어\n원데이 클래스, 모임, 정기 배송, 실물 키트, 대여 서비스, 중개 플랫폼, 템플릿 판매";
   const TWISTS = [
     "반대로 뒤집기", "100배 크게", "주머니 크기로 작게", "아이를 위해", "어르신을 위해",
     "1분 안에 끝나게", "오프라인으로만", "돈을 받지 않고", "구독으로 바꾸기", "게임처럼",
@@ -500,11 +440,15 @@ textarea#memo::placeholder { color: var(--muted); }
   ];
   const PROMPTS = [
     "이 조합이 해결할 수 있는 불편함은 무엇일까요?",
-    "이 키워드들로 짧은 이야기의 첫 줄을 써 보세요.",
-    "이 조합을 좋아할 사람은 누구이고, 언제 쓸까요?",
-    "이 키워드로 주말 프로젝트를 만든다면 무엇을 만들까요?",
+    "이걸 가장 먼저 쓸 사람은 누구이고, 언제 쓸까요?",
+    "주말 이틀 안에 만들 수 있는 가장 작은 버전은 무엇일까요?",
+    "사람들이 돈을 낸다면 무엇에 낼까요?",
+    "비슷한 게 이미 있다면, 무엇이 달라야 할까요?",
   ];
   const $ = id => document.getElementById(id);
+  // '이것만 다시' 순환 화살표 아이콘 (쪽지와 질문 줄이 같이 씀)
+  const ICON_REROLL = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>';
+  $("q-reroll").innerHTML = ICON_REROLL;
   const slipsEl = $("slips"), memoEl = $("memo");
   // 애니메이션 최소화 여부는 <html data-motion>이 기준 (머리 스크립트·스위치가 정함)
   const reduced = () => document.documentElement.dataset.motion === "reduce";
@@ -538,7 +482,10 @@ textarea#memo::placeholder { color: var(--muted); }
     const old = store.get("twistDeck");
     if (old && !decks.some(d => d.id === "t"))
       decks.push({ id: "t", name: "관점", text: old.text ?? "", excluded: old.excluded ?? [], use: store.get("twistOn") ?? true, n: 1, fold: !!old.fold });
-    try { localStorage.removeItem("kwdraw:twistDeck"); localStorage.removeItem("kwdraw:twistOn"); } catch {}
+    // 옮긴 관점 덱을 먼저 저장하고, 저장된 목록에 관점 덱("t")이 있는 게 확인될 때만 예전 키를 지움
+    if (old) store.set("decks", decks);
+    if (!old || store.get("decks")?.some(d => d.id === "t"))
+      try { localStorage.removeItem("kwdraw:twistDeck"); localStorage.removeItem("kwdraw:twistOn"); } catch {}
   }
   for (const d of decks) { d.excluded ??= []; d.n = Math.max(1, d.n | 0); }
   let armedDel = null, armTimer;   // 목록의 × : 한 번 누르면 '삭제'로 바뀌고 3초 안에 한 번 더 눌러야 지워짐
@@ -567,14 +514,21 @@ textarea#memo::placeholder { color: var(--muted); }
   let history = store.get("history") ?? [];
   for (const h of history) h.id ??= newId();
   const isSaved = e => !!e && history.some(h => h.id === e.id);
-  // 기록하기를 안 눌렀어도 메모나 ★를 단 조합은 버리지 않고 기록으로 넘김
-  const keepIfNoted = () => { if (entry && !isSaved(entry) && !entry.dropped && (entry.memo || entry.star)) history.unshift(entry); };
-  let spinning = false, spinSlots = [];   // 셔플·착지 중인 쪽지 칸. 덱 칩 하이라이트는 애니메이션이 끝난 뒤에
+  // 다음 뽑기로 넘어가면 지금 조합을 기록으로 넘김 (기록하기를 안 눌러도).
+  // 빼는 경우: '✓ 기록됨'을 눌러 직접 뺀 조합(dropped), 처음 화면의 예시 뽑기(sample)에 메모·★가 없을 때
+  const keepIfNoted = () => {
+    if (!entry || !entry.words?.length || isSaved(entry) || entry.dropped) return;
+    if (entry.sample && !entry.memo && !entry.star) return;
+    delete entry.sample; history.unshift(entry);
+  };
+  let sampleDraw = false;   // 처음 방문·초기화 때 예시로 한 번 뽑아 두는 뽑기
+  // 셔플·착지 중인 쪽지의 '덱 id\n키워드'. 덱 칩 하이라이트는 애니메이션이 끝난 뒤에 (칸 번호가 아니라 키워드로 기억해 × 로 칸이 빠져도 안 어긋남)
+  let spinning = false, spinSlots = [], hitTimer;
   // 지금 화면의 조합. 메모·별표는 여기에 붙고, 기록(history)에는 다음 뽑기 때 넘어감
   let entry = null;
   let filter = "all";
   let showAll = false;   // 전체 필터에서 12개 넘는 기록 펼치기
-  const prune = () => { let plain = 0; history = history.filter(h => h.memo || h.star || ++plain <= 30); };
+  const prune = () => { let plain = 0; history = history.filter(h => h.memo || h.star || ++plain <= 300); };
   const saveHistory = () => { store.set("history", history); store.set("current", entry); };
   const saveDecks = () => store.set("decks", decks);
 
@@ -609,9 +563,17 @@ textarea#memo::placeholder { color: var(--muted); }
 
   // 칩 ×로 지운 키워드는 알림의 '되돌리기'로 살림
   function removeWithUndo(d, w) {
-    const before = { text: d.text, excluded: [...d.excluded] };
+    // 되돌릴 때는 지운 키워드만 원래 자리에 다시 넣음 (그 사이에 한 다른 편집은 그대로)
+    const at = deckWords(d).indexOf(w), wasOff = d.excluded.includes(w);
     removeWord(d, w); renderAll();
-    toast(`‘${w}’를 뺐어요`, () => { d.text = before.text; d.excluded = before.excluded; saveDecks(); renderAll(); });
+    toast(`‘${w}’를 뺐어요`, () => {
+      // 그 사이 같은 키워드를 (대소문자만 달라도) 다시 넣었으면 그대로 둠
+      const words = deckWords(d);
+      if (words.some(x => x.toLowerCase() === w.toLowerCase())) return;
+      words.splice(Math.min(at, words.length), 0, w);
+      if (wasOff && !d.excluded.includes(w)) d.excluded.push(w);
+      setWords(d, words); renderAll();
+    });
   }
 
   const pickOne = list => list.length ? list[rand(list.length)] : undefined;
@@ -804,7 +766,7 @@ textarea#memo::placeholder { color: var(--muted); }
     clear.onclick = () => {
       d.text = ""; d.excluded = []; saveDecks();
       current = current.filter(c => c.from !== d.id);
-      if (!current.length) { entry = null; memoEl.value = ""; saveHistory(); }
+      if (!current.length) { keepIfNoted(); prune(); entry = null; memoEl.value = ""; saveHistory(); }   // 지금 조합은 기록으로 넘기고 비움
       renderSlips(); renderHistory();
       $("deck-list").querySelector(`[data-fk="add-${d.id}"]`)?.focus();
     };
@@ -820,7 +782,7 @@ textarea#memo::placeholder { color: var(--muted); }
     const words = deckWords(d);
     d.excluded = d.excluded.filter(w => words.includes(w));
     const ex = new Set(d.excluded);
-    const hits = new Set(current.filter((_, i) => !spinSlots.includes(i)).map(c => c.from + "\n" + c.word));
+    const hits = new Set(current.map(c => c.from + "\n" + c.word).filter(k => !spinSlots.includes(k)));
     if (!words.length) {
       const s = document.createElement("span"); s.className = "chips-empty"; s.textContent = "아직 키워드가 없어요.";
       return [s];
@@ -887,7 +849,7 @@ textarea#memo::placeholder { color: var(--muted); }
   function lockBtn(item, d) {
     const lock = d.querySelector(".lock");
     const label = item.locked ? "고정 해제" : "고정";
-    lock.title = label; lock.setAttribute("aria-label", `‘${item.word}’ ${label}`);
+    lock.title = label; lock.setAttribute("aria-label", `‘${item.word}’ 고정`);   // 상태는 aria-pressed가 알림
     lock.setAttribute("aria-pressed", String(item.locked));
     lock.onclick = () => { item.locked = !item.locked; renderSlips(); };
   }
@@ -913,7 +875,7 @@ textarea#memo::placeholder { color: var(--muted); }
     d.style.setProperty("--dot", deckColor(item.from));   // 테두리는 늘 덱 색, 덱 이름·점은 여러 덱이 섞일 때만
     d.innerHTML = `<div class="meta"><span class="${showSrc ? "src" : ""}"></span><span>${item.locked ? "고정됨" : ""}</span></div>
       <div class="word"></div>
-      <div class="acts"><button type="button" class="lock ico-btn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></button><button type="button" class="reroll ico-btn" title="이것만 다시"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button></div>`;
+      <div class="acts"><button type="button" class="lock ico-btn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg></button><button type="button" class="reroll ico-btn" title="이것만 다시">${ICON_REROLL}</button></div>`;
     d.querySelector(".meta span").textContent = showSrc ? deckName(item.from) : `쪽지 ${i + 1}`;
     d.querySelector(".word").textContent = item.word;
     lockBtn(item, d);
@@ -959,6 +921,7 @@ textarea#memo::placeholder { color: var(--muted); }
 
   function toggleStar(h) {
     h.star = !h.star;
+    if (h.star) delete h.sample;
     if (h.star && !isSaved(h)) { delete h.dropped; history.unshift(h); prune(); }   // 후보는 기록에서 다시 찾으니 함께 기록
     saveHistory();
     renderStar(); renderHistory(); toast(h.star ? "후보로 표시했어요" : "후보에서 뺐어요");
@@ -974,13 +937,13 @@ textarea#memo::placeholder { color: var(--muted); }
       b.type = "button"; b.className = "h-open";
       b.innerHTML = `<span class="t"></span><span class="words"></span>`;
       b.querySelector(".t").textContent = h.time;
-      b.querySelector(".words").textContent = h.words.join(" × ");
+      b.querySelector(".words").textContent = h.words.join(", ");
       if (h.memo) {
         const m = document.createElement("span");
         m.className = "memo-preview"; m.textContent = h.memo.replace(/\s+/g, " ");
         b.append(m);
       }
-      b.onclick = () => { openFromHistory(h); toast("이전 조합을 불러왔어요"); };
+      b.onclick = () => { if (spinning) return; openFromHistory(h); toast("이전 조합을 불러왔어요"); };   // 셔플 중엔 끝날 때 덮어쓰므로 막음
       const s = document.createElement("button");
       s.type = "button"; s.className = "h-star"; s.textContent = h.star ? "★" : "☆";
       s.setAttribute("aria-pressed", String(!!h.star));
@@ -994,26 +957,37 @@ textarea#memo::placeholder { color: var(--muted); }
       li.textContent = filter === "star" ? "★ 후보로 표시한 조합이 아직 없어요." : "메모를 남긴 조합이 아직 없어요.";
       items.push(li);
     }
-    if (filter === "all" && !showAll && history.length > 12) {
+    // 전체 필터에서 12개가 넘으면 '더 보기', 펼친 뒤엔 맨 아래 '접기'
+    if (filter === "all" && history.length > 12) {
       const li = document.createElement("li");
       const more = document.createElement("button");
       more.type = "button"; more.className = "linkbtn h-more";
-      more.textContent = `더 보기 (${history.length - 12}개)`;
-      more.onclick = () => { showAll = true; renderHistory(); };
+      more.textContent = showAll ? "접기" : `더 보기 (${history.length - 12}개)`;
+      more.setAttribute("aria-expanded", String(showAll));
+      more.onclick = () => {
+        showAll = !showAll; renderHistory();
+        // 접으면 버튼이 위로 올라가니 기록 머리가 화면 밖이면 보이게 하고 초점도 옮김
+        if (!showAll) {
+          if ($("history").getBoundingClientRect().top < 0) $("history").scrollIntoView({ block: "start" });
+          $("history-list").querySelector(".h-more")?.focus({ preventScroll: true });
+        }
+      };
       li.append(more); items.push(li);
     }
     $("history-list").replaceChildren(...items);
-    $("copy-list").disabled = !list.some(h => h.memo || h.star);
   }
 
   function openEntry(h) {
     entry = h;
     current = h.words.map((word, i) => ({ word, from: h.decks?.[i] ?? findDeckOf(word), locked: false }));
-    // 뽑기 설정도 그 기록에 맞춤: 어떤 덱에서 몇 장 (지운 덱은 건너뜀)
+    // 뽑기 설정도 그 기록에 맞춤: 어떤 덱에서 몇 장 (지운 덱은 건너뜀).
+    // 관점 덱("t")은 초기화해도 id가 같으므로, 다른 덱은 다 지워지고 관점 덱만 남은 기록이면 다른 덱을 끄지 않고 그대로 둠.
+    // 처음부터 관점 덱에서만 뽑은 기록은 그대로 맞춤
     if (h.decks) {
       const cnt = {};
       for (const id of h.decks) cnt[id] = (cnt[id] || 0) + 1;
-      if (Object.keys(cnt).some(id => getDeck(id))) {
+      const ids = Object.keys(cnt), live = ids.filter(id => getDeck(id));
+      if (live.some(id => id !== "t") || (live.length && ids.every(id => id === "t"))) {
         for (const d of decks) { d.use = !!cnt[d.id]; if (cnt[d.id]) d.n = cnt[d.id]; }
         saveDecks();
       }
@@ -1086,19 +1060,27 @@ textarea#memo::placeholder { color: var(--muted); }
       current = next; spinning = false;
       record();
       renderSlips(targets); renderHistory();
-      if (spinSlots.length) setTimeout(() => { spinSlots = []; renderDecks(); }, 350);   // 착지(.landed) 끝나면
+      // 칩 하이라이트는 착지(.landed) 애니메이션이 끝난 뒤에. 시간은 CSS에서 읽고, 애니메이션이 없으면 바로
+      if (spinSlots.length) {
+        const landed = slipsEl.querySelector(".slip.landed");
+        const ms = landed && !reduced() ? parseFloat(getComputedStyle(landed).animationDuration) * 1000 || 0 : 0;
+        hitTimer = setTimeout(() => { spinSlots = []; renderDecks(); }, ms);
+      }
       if (exhausted) toast("아직 안 나온 조합을 찾지 못해 이미 나온 조합을 보여줘요");
     };
+    // 앞선 뽑기의 하이라이트 대기를 정리 (애니메이션 유무와 상관없이)
+    clearTimeout(hitTimer); spinSlots = [];
     if (reduced()) return finish();
 
     // 짧은 셔플 연출: 칸마다 시간차를 두고 멈춤
-    spinning = true; spinSlots = targets;
+    spinning = true; spinSlots = targets.map(i => next[i].from + "\n" + next[i].word);
     current = next.map(c => ({ ...c }));
     renderSlips();
     const els = [...slipsEl.children];
     targets.forEach(i => els[i]?.classList.add("spinning"));
     const start = performance.now(), base = 520, stagger = 140;
     const tick = now => {
+      if (reduced()) return finish();   // 뽑는 도중 애니메이션 최소화를 켜면 바로 멈춤
       const el = now - start;
       let alive = false;
       targets.forEach((i, k) => {
@@ -1113,10 +1095,11 @@ textarea#memo::placeholder { color: var(--muted); }
     requestAnimationFrame(tick);
   }
 
-  // 새로 뽑은 쪽지가 지금 조합이 됨. 기록에는 '기록하기'를 눌러야 남음
+  // 새로 뽑은 쪽지가 지금 조합이 됨. 이전 조합은 기록으로 넘어감 (keepIfNoted)
   function record() {
     keepIfNoted();
     entry = { id: newId(), time: stamp(), words: current.map(c => c.word), decks: current.map(c => c.from), memo: "", star: false };
+    if (sampleDraw) { entry.sample = true; sampleDraw = false; }
     prune(); saveHistory();
     memoEl.value = ""; $("memo-state").textContent = "";
     $("combo-q").textContent = PROMPTS[rand(PROMPTS.length)];
@@ -1134,7 +1117,7 @@ textarea#memo::placeholder { color: var(--muted); }
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, undo ? 4000 : 1600);
   }
 
-  const comboText = () => current.map(c => c.word).join(" × ");
+  const comboText = () => current.map(c => c.word).join(", ");
 
   function deleteDeck(d) {
     if (decks.length <= 1) return;
@@ -1160,8 +1143,8 @@ textarea#memo::placeholder { color: var(--muted); }
   $("star").onclick = () => entry && toggleStar(entry);
   $("save-entry").onclick = () => {
     if (!entry) return;
-    if (isSaved(entry)) { history = history.filter(h => h.id !== entry.id); entry.dropped = true; toast("기록에서 뺐어요"); }
-    else { delete entry.dropped; history.unshift(entry); prune(); toast("기록에 남겼어요"); }
+    if (isSaved(entry)) { history = history.filter(h => h.id !== entry.id); entry.dropped = true; entry.star = false; toast("기록에서 뺐어요"); }
+    else { delete entry.dropped; delete entry.sample; history.unshift(entry); prune(); toast("기록에 남겼어요"); }
     saveHistory(); renderStar(); renderHistory();
   };
   $("q-reroll").onclick = () => {
@@ -1174,7 +1157,7 @@ textarea#memo::placeholder { color: var(--muted); }
     $(btnId).setAttribute("aria-expanded", String(open));
   }
 
-  // 초기화: 기록과 테마만 남기고 저장값(덱, 지금 조합 포함)을 모두 지운 뒤, 주소의 공유 내용 없이 다시 엶
+  // 초기화: 기록·테마·애니메이션 최소화만 남기고 저장값(덱, 지금 조합 포함)을 모두 지운 뒤, 주소의 공유 내용 없이 다시 엶
   const KEEP = new Set(["kwdraw:history", "kwdraw:theme", "kwdraw:motion"]);
   $("reset-open").onclick = () => showPanel("reset-open", "reset-panel", $("reset-panel").hidden);
   $("reset-cancel").onclick = () => showPanel("reset-open", "reset-panel", false);
@@ -1210,15 +1193,20 @@ textarea#memo::placeholder { color: var(--muted); }
   document.querySelectorAll("#theme-seg button").forEach(b => b.onclick = () => {
     store.set("theme", b.dataset.themeChoice); applyTheme(b.dataset.themeChoice);
   });
-  // 애니메이션 최소화: 누르면 OS 설정과 상관없이 그 값으로 저장
-  function applyMotion() {
-    const m = store.get("motion");
-    const on = m === "reduce" || (m !== "full" && matchMedia("(prefers-reduced-motion: reduce)").matches);
-    if (on) document.documentElement.dataset.motion = "reduce"; else delete document.documentElement.dataset.motion;
-    $("opt-motion").setAttribute("aria-pressed", String(on));
-  }
+  // 애니메이션 최소화: 고른 값이 OS 설정과 같으면 저장값을 지워 다시 OS 설정을 따르게 함.
+  // 저장소가 막혀 있어도 스위치가 바뀌도록 고른 값을 바로 적용
+  let motionChoice = store.get("motion");
+  const osReduce = matchMedia("(prefers-reduced-motion: reduce)");
+  function applyMotion() { $("opt-motion").setAttribute("aria-pressed", String(window.kwdrawMotion(motionChoice))); }
   applyMotion();
-  $("opt-motion").onclick = () => { store.set("motion", reduced() ? "full" : "reduce"); applyMotion(); };
+  // 페이지를 연 채로 OS 설정을 바꿔도 따라감 (예전 Safari는 addListener만 있음)
+  try { osReduce.addEventListener ? osReduce.addEventListener("change", applyMotion) : osReduce.addListener(applyMotion); } catch {}
+  $("opt-motion").onclick = () => {
+    const pick = reduced() ? "full" : "reduce";
+    motionChoice = (pick === "reduce") === osReduce.matches ? null : pick;
+    try { motionChoice ? store.set("motion", motionChoice) : localStorage.removeItem("kwdraw:motion"); } catch {}
+    applyMotion();
+  };
   document.querySelectorAll("#filter-seg button").forEach(b => b.onclick = () => { filter = b.dataset.filter; showAll = false; renderHistory(); });
 
   $("copy").onclick = async () => {
@@ -1232,20 +1220,12 @@ textarea#memo::placeholder { color: var(--muted); }
     try { await navigator.clipboard.writeText(url); toast("공유 링크를 복사했어요"); }
     catch { toast("주소창의 링크를 복사해 공유하세요"); }
   };
-  $("copy-list").onclick = async () => {
-    const notes = filtered().filter(h => h.memo || h.star).reverse();
-    const text = notes.map(h => {
-      const head = `## ${h.star ? "★ " : ""}${h.words.join(" × ")}`;
-      return h.memo ? `${head}\n${h.memo.trim()}` : head;
-    }).join("\n\n");
-    try { await navigator.clipboard.writeText(text); toast(`${notes.length}개를 마크다운으로 복사했어요`); }
-    catch { toast("이 환경에서는 복사할 수 없어요"); }
-  };
 
   let memoTimer;
   memoEl.addEventListener("input", () => {
     if (!entry) return;
     entry.memo = memoEl.value.trim() ? memoEl.value : "";
+    if (entry.memo) delete entry.dropped;   // 기록에서 뺀 뒤 메모를 쓰면 다시 기록으로 넘김
     $("memo-state").textContent = "저장 중…";
     clearTimeout(memoTimer);
     memoTimer = setTimeout(() => {
@@ -1286,7 +1266,8 @@ textarea#memo::placeholder { color: var(--muted); }
     openEntry(entry);   // 새로고침해도 지금 조합과 메모가 그대로
   } else {
     renderSlips(); renderHistory();
-    // 처음 열었을 때도 무엇을 하는 도구인지 보이도록 예시로 한 번 뽑아 둠
+    // 처음 열었을 때도 무엇을 하는 도구인지 보이도록 예시로 한 번 뽑아 둠 (다음 뽑기 때 기록으로 안 넘김)
+    sampleDraw = drawDecks().length > 0;   // 뽑을 덱이 없으면 draw()가 그냥 끝나므로 표시도 안 함
     draw();
   }
 })();
