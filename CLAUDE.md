@@ -1,31 +1,30 @@
 # 아이디어 공장
 
-키워드를 덱에 넣어 두고, 켠 덱마다 정한 장 수만큼 무작위로 뽑아 조합하는 브레인스토밍 웹페이지. 빌드 도구·라이브러리 없이 HTML 파일 하나로 동작한다.
+키워드를 덱에 넣어 두고, 켠 덱마다 정한 장 수만큼 무작위로 뽑아 조합하는 브레인스토밍 웹페이지. 빌드 도구·라이브러리 없이 HTML·CSS·ES 모듈(`<script type="module">`)로 동작한다.
 
 ## 파일
 
 | 파일 | 역할 |
 |---|---|
-| `keyword-draw.html` | **원본.** claude.ai Artifact로 게시하는 파일. `<!doctype>`, `<html>`, `<head>`, `<body>` 없이 `<title>`·`<style>`·마크업·`<script>`만 있음 (Artifact가 감싸 줌) |
-| `index.html` | **배포용.** `keyword-draw.html`에서 만들어 내는 결과물. 직접 고치지 말 것 |
+| `keyword-draw.html` | **원본 페이지.** 머리 스크립트(테마·애니메이션 최소화를 그리기 전에 적용) + 마크업만. claude.ai Artifact로 게시하는 파일이라 `<!doctype>`·`<html>`·`<head>`·`<body>`가 없음 (Artifact가 감싸 줌) |
+| `style.css` | 스타일 전부 |
+| `js/main.js` | 시작점. 저장값 불러오기, 첫 화면, 뽑기 줄·테마·애니메이션 최소화·초기화 버튼 |
+| `js/state.js` | 화면 전체가 함께 쓰는 상태 하나(`state`) |
+| `js/entry.js` | 지금 조합과 기록의 규칙(언제 기록에 남기나). **기록 관련 버그는 대부분 여기** |
+| `js/decks.js` | 덱 데이터·예전 형식 옮기기·키워드 편집 |
+| `js/draw.js` | 뽑기와 셔플 연출 |
+| `js/share.js` | 공유 링크 읽기·만들기 |
+| `js/render.js` | `render()`: 화면 전체를 상태에 맞춰 다시 그림 |
+| `js/view-decks.js` · `view-stage.js` · `view-history.js` | 왼쪽 덱 목록 / 쪽지·이번 조합·메모 / 기록 목록 화면과 그 버튼 |
+| `js/util.js` · `js/samples.js` | 작은 도구(저장소·알림 등) / 예시 덱과 질문 |
+| `index.html` | **배포용.** `./build.sh`가 `keyword-draw.html`로 만든다. 직접 고치지 말 것 |
 
-- Artifact: https://claude.ai/artifact/7KJ7kKgwzHfEMB4FLwuKHT (비공개, 공유는 페이지의 Share 메뉴에서)
-- 수정은 항상 `keyword-draw.html`에 하고, 아래 명령으로 `index.html`을 다시 만든 뒤, Artifact도 같은 파일 경로로 다시 게시한다.
-
-```sh
-{
-printf '<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-awk '/^<\/style>/{print; exit} {print}' keyword-draw.html | grep -v 'claude:viewport-fit-sides'
-printf '</head>\n<body>\n'
-awk 'f{print} /^<\/style>/{f=1}' keyword-draw.html
-printf '</body>\n</html>\n'
-} > index.html && sed -i '' 's/^:root {$/:root {\n  color-scheme: light;/' index.html
-```
-
-스크립트 문법 검사:
-```sh
-awk '/^<script>$/{f=1;next} /^<\/script>$/{f=0} f' index.html | sed -n '/^(() => {/,$p' > "$TMPDIR/check.js" && node --check "$TMPDIR/check.js"
-```
+- 흐름: 버튼을 누르면 `state`를 바꾸고 → 저장하고 → `render()` 하나만 부른다. 화면 조각을 따로 다시 그리지 않음. 예외: 뽑기 뒤 칩 하이라이트(`refreshHits()`), 메모 자동 저장(기록 목록·주소만), 기록 필터·더 보기(기록 목록만)
+- `render()`는 마우스·손가락을 누르고 있는 동안엔 미뤘다가 클릭이 끝난 뒤 그린다. 입력 칸(덱 이름·한꺼번에 편집)의 `change`는 칸 밖을 누르는 순간 일어나는데, 그때 다시 그리면 누르던 버튼이 바뀌거나(목록 재생성) 밀려나서(칩 수가 줄어 높이 변화) 클릭이 사라졌음
+- 모듈끼리 서로 가져오는(순환) 곳이 있다(`render` ↔ 화면 모듈, `draw` ↔ `view-stage`). 모듈 맨 위에서 다른 모듈의 함수를 바로 부르지 말 것 — 이벤트 연결처럼 나중에 불리는 코드만
+- Artifact: https://claude.ai/artifact/7KJ7kKgwzHfEMB4FLwuKHT (비공개, 공유는 페이지의 Share 메뉴에서). 게시할 때 `keyword-draw.html`을 페이지로, `style.css`와 `js/*.js`를 `files`로 같은 경로에 함께 올린다
+- ES 모듈이라 `index.html`을 파일로 바로 열면(`file://`) 스크립트가 안 돈다. 늘 로컬 서버로 열 것
+- 고친 뒤엔 `./build.sh`(`index.html`을 다시 만들고 `js/*.js` 문법 검사)를 돌리고, Artifact도 다시 게시한다
 
 ## 확인 방법
 
@@ -58,15 +57,17 @@ awk '/^<script>$/{f=1;next} /^<\/script>$/{f=0} f' index.html | sed -n '/^(() =>
 ## 동작 규칙 (사용자가 정한 것)
 
 - **뽑기**: 켠 덱마다 정한 장 수만큼 뽑는다. 모든 키워드는 같은 확률 (예전 '덜 나온 키워드 우선'과 뽑힌 횟수 표시는 삭제함). `이것만 다시`만 그 칸에 있던 단어를 피한다(다른 후보가 없으면 허용). 전체 뽑기는 직전 단어를 피하지 않는다 — 겹침 방지는 `이미 나온 조합 제외`(조합 단위)가 맡는다고 사용자가 정함
-- **기록**: 다음 뽑기(`이것만 다시` 포함)나 기록 열기로 넘어가면 지금 조합이 자동으로 기록에 남는다(`keepIfNoted`. 한때 `기록하기`를 눌러야만 남게 했다가 사용자가 되살림). `기록하기`는 지금 바로 남길 때, `✓ 기록됨`을 다시 누르면 빠진다
+- **기록**: 다음 뽑기(`이것만 다시` 포함)나 기록 열기로 넘어가면 지금 조합이 자동으로 기록에 남는다(`switchEntry`. 한때 `기록하기`를 눌러야만 남게 했다가 사용자가 되살림). `기록하기`는 지금 바로 남길 때, `✓ 기록됨`을 다시 누르면 빠진다
   - ★ 후보로 표시하면 바로 기록
-  - 처음 방문·초기화 때의 예시 뽑기(`entry.sample`)는 메모·★가 없으면 넘기지 않음
-  - 단, `✓ 기록됨`을 눌러 직접 뺀 조합은 ★도 꺼지고(`dropped`) 다시 자동으로 넘어가지 않음. ★를 다시 누르거나, 기록하기를 누르거나, 메모를 쓰면 다시 기록
+  - 처음 방문·초기화 때의 예시 뽑기는 메모·★가 없으면 넘기지 않음(`keep: false`). 처음 방문은 `history`·`theme`·`motion` 말고 `kwdraw:` 저장값이 하나도 없는 것으로 판단(`freshStart`). 공유 링크로 처음 온 경우, 예전 버전 사용자, 쪽지를 다 뺀 사용자는 예시 뽑기를 안 하고 빈 화면
+  - 단, `✓ 기록됨`을 눌러 직접 뺀 조합은 ★도 꺼지고(`keep: false`) 다시 자동으로 넘어가지 않음. ★를 다시 누르거나, 기록하기를 누르거나, 메모를 쓰면 다시 기록
+- `기록 삭제`를 하면 지금 조합도 `keep: false`가 돼서, 다음 뽑기 때 다시 기록으로 넘어가지 않음. 단 메모가 있으면 메모를 잃지 않게 그대로 둠
+- 기록 여부(`history`·`keep`)는 `js/entry.js` 안에서만 바꾼다. 다른 파일은 `remember`·`forget`·`switchEntry`·`setMemo`·`clearHistory`·`newEntry({sample})`를 부를 것 (예전엔 `sample`·`dropped` 표시가 곳곳에서 바뀌어 리뷰마다 버그가 나왔음)
 - **지금 조합**은 기록과 별개로 저장(`current`)돼서 새로고침해도 그대로. 기록에서 조합을 열어도 그 기록은 목록에 남는다
-- **기록을 열면 설정을 그 기록에 맞춘다**: 어떤 덱을 켰는지, 덱마다 몇 장. 반대로 개수 버튼은 쪽지를 바꾸지 않고 다음 뽑기에만 적용
+- **기록을 열면 설정을 그 기록에 맞춘다**: 어떤 덱을 켰는지, 덱마다 몇 장. 기록 목록에서 열 때만이고, 새로고침·공유 링크로 지금 조합을 되살릴 때는 덱 설정을 건드리지 않음. 반대로 개수 버튼은 쪽지를 바꾸지 않고 다음 뽑기에만 적용
 - **이미 나온 조합 제외**: 기록 + 지금 조합의 키워드 묶음(순서 무관, 관점 덱 키워드도 포함)과 같으면 최대 100번 다시 뽑고, 못 찾으면 이미 나온 조합을 보여주며 알림
 - **덱 칩 하이라이트**(`.chip.hit`, 지금 쪽지에 나온 키워드): 뽑기 중엔 다시 뽑는 칸의 키워드를 숨겼다가 셔플·착지 애니메이션이 끝난 뒤(`spinSlots`가 비면) 켠다. 결과를 미리 알려 주지 않게 하려는 것
-- **결과 카드 ×**: 덱은 건드리지 않고 지금 조합에서만 뺌. 다음 뽑기는 다시 정한 장 수대로
+- **결과 카드 ×**: 덱은 건드리지 않고 지금 조합에서만 뺌. 다음 뽑기는 다시 정한 장 수대로. 마지막 쪽지를 빼면 `비우기`처럼 지금 조합(메모 포함)을 기록으로 넘기고 비움(`removeSlips`). 이미 기록된 조합에서 쪽지를 빼면(×·덱 비우기) 그 기록은 그대로 두고, 남은 쪽지가 메모·★ 없는 새 조합이 됨. 셔플 중엔 ×·고정·덱 비우기·기록 열기 모두 안 먹음. 셔플 중엔 `render()`가 쪽지를 다시 그리지 않으므로(덱 삭제·이름 변경 등) 결과가 미리 보이지 않음
 - **칩**: 이름을 누르면 이번 뽑기에서 제외(줄 그어짐), × 는 덱에서 삭제. 입력칸에서 Enter·쉼표로 추가, 여러 개 붙여 넣으면 나눠서 추가, 한글 조합 중 Enter는 무시(빈 칸 Backspace로 칩 지우기는 사용자가 없앰). ×로 지우면 알림에 `되돌리기`(4초). 칩 영역은 높이 제한 없음(덱 접기로 대신)
 - **초기화**: 기록(`history`)·테마(`theme`)·애니메이션 최소화(`motion`)만 남기고 `kwdraw:` 저장값을 모두 지운 뒤, 주소의 공유 내용 없이 다시 연다 → 예시 덱 세 개(`키워드`·`방식`·`관점` 모두 켜짐, 각 1장)로 시작하고 예시로 한 번 뽑아 둠(기록엔 안 남음)
 - **공유 링크로 열 때** 내 덱을 덮지 않는다: 내용이 같은 덱은 재사용, 없으면 새 덱 추가, 이름만 같으면 `이름 (공유)`
@@ -79,12 +80,14 @@ awk '/^<script>$/{f=1;next} /^<\/script>$/{f=0} f' index.html | sed -n '/^(() =>
 |---|---|
 | `decks` | `[{id, name, text, excluded[], use, n, fold}]` — `text`가 원본(쉼표 구분), 칩 추가·삭제도 `text`를 고침 |
 | `skipSeen` | 토글 |
-| `current` | 지금 조합 `{id, time, words[], decks[덱 id], memo, star}` |
+| `current` | 지금 조합 `{id, time, words[], decks[덱 id], memo, star, keep}` (`keep: false`면 다음으로 넘어갈 때 기록에 안 남김) |
 | `history` | 기록 배열 (같은 형식). 메모·★ 없는 기록은 최근 300개까지만 유지(예전 30개는 자동 기록 때문에 금방 차서 늘림) |
 | `theme` | `system` / `light` / `dark` |
 | `motion` | `reduce` / `full` / 없음(OS 설정을 따름) |
 
-예전 형식(`input`, `inputB`, `excluded*`, `nameA/B`, `mode`, `n*`, `presets`, `inputT`)은 처음 열 때 `decks`로 옮겨진다 (`migrateDecks`). 예전 기록의 `pools` 필드는 단어로 덱을 찾아 대신한다.
+예전 형식(`input`, `inputB`, `excluded*`, `nameA/B`, `mode`, `n*`, `presets`, `inputT`)은 처음 열 때 `decks`로 옮겨진다 (`migrateDecks`). 예전 기록의 `pools` 필드는 단어로 덱을 찾아 대신한다. 예전 `sample`·`dropped` 표시는 `upgradeEntry`가 `keep`으로, 예전 `url` 키는 지운다.
+
+새로고침·뒤로 가기로 다시 연 페이지는 주소에 공유 내용이 있어도 공유 링크로 읽지 않는다(`performance.getEntriesByType("navigation")`). 예전엔 마지막 주소를 저장해 비교했는데 `'`→`%27` 인코딩·탭 두 개에서 깨졌음
 
 **관점 카드는 따로 없다.** 예전의 별도 관점 카드(`twistDeck`, `twistOn`)는 id가 `"t"`인 보통 덱 `관점`으로 옮겨지고 두 키는 지워진다. 기록·지금 조합의 `twist` 필드는 `absorbTwist`가 `words` 끝(덱 id `"t"`)으로 옮긴다. 예시 관점 목록은 `TWISTS`.
 
@@ -116,10 +119,9 @@ awk '/^<script>$/{f=1;next} /^<\/script>$/{f=0} f' index.html | sed -n '/^(() =>
 
 ## 작업하면서 겪은 함정
 
-- `[hidden] { display: none !important; }`가 꼭 필요하다. Artifact 뼈대에는 있지만 `index.html`에는 없어서, `display`를 지정한 요소가 `hidden`이어도 보였던 적이 있음
-- `draw()` 안에 `base`라는 지역 변수(셔플 연출 시간)가 있다. 같은 이름을 매개변수로 쓰면 스크립트 전체가 멈춤
-- CSS를 `sed '/A/,/^}$/d'` 같은 범위 삭제로 지우지 말 것. 시작 패턴이 다시 맞으면 범위가 다시 열려 엉뚱한 규칙까지 지워진다. 지울 때는 정확한 문자열로 바꾸고, 바꾼 뒤 CSS를 백업과 diff
-- 덱 목록은 상태가 바뀔 때마다 통째로 다시 그린다. 키보드 초점은 `data-fk`로 되돌리고, 이름·한꺼번에 편집 칸은 `input` 때는 저장만, `change` 때 다시 그려서 입력 중 커서가 튀지 않게 함
+- `style.css`의 `[hidden] { display: none !important; }`가 꼭 필요하다. Artifact 뼈대에는 있지만 `index.html`에는 없어서, `display`를 지정한 요소가 `hidden`이어도 보였던 적이 있음
+- CSS를 `sed '/A/,/^}$/d'` 같은 범위 삭제로 지우지 말 것. 시작 패턴이 다시 맞으면 범위가 다시 열려 엉뚱한 규칙까지 지워진다. 지울 때는 정확한 문자열로 바꾸고, 바꾼 뒤 `style.css`를 백업과 diff
+- 덱 목록·쪽지·기록은 `render()`마다 통째로 다시 그린다. 메모 칸은 지금 조합이 바뀔 때만 내용을 바꾼다(`renderCombo`). 아직 추가 안 한 키워드 입력값과 고치는 중인 덱 이름은 `renderDecks`가 되살린다. 뽑기 뒤 칩 하이라이트는 다시 그리지 않고 `refreshHits()`로 클래스만 바꿈. 키보드 초점은 `data-fk`로 되돌리고, 이름·한꺼번에 편집 칸은 `input` 때는 저장만, `change` 때 다시 그려서 입력 중 커서가 튀지 않게 함
 - 결과 카드 `innerHTML`에는 고정 문자열만 넣고, 사용자가 쓴 글은 항상 `textContent`로 넣는다
 - `.stage`의 `padding-top: 33px`은 왼쪽 `덱 N개` 제목 줄 높이에 맞춘 값이다. 제목 글꼴·크기를 바꾸면 `#draw`와 첫 `.deck-row`의 `getBoundingClientRect().top`을 재서 다시 맞출 것
 - 알림(`toast(msg, undo)`)에 되돌리기 버튼이 붙을 수 있다. `textContent`로 문구를 넣은 뒤 버튼을 append하므로 순서를 바꾸지 말 것
