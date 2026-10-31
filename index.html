@@ -10,6 +10,8 @@
 <script>
   // 저장된 테마를 그리기 전에 먼저 적용해 깜빡임을 막음
   try { const t = JSON.parse(localStorage.getItem("kwdraw:theme")); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
+  // 애니메이션 최소화: 저장값이 없으면 OS 설정(prefers-reduced-motion)을 따름
+  try { const m = JSON.parse(localStorage.getItem("kwdraw:motion")); if (m === "reduce" || (m !== "full" && matchMedia("(prefers-reduced-motion: reduce)").matches)) document.documentElement.dataset.motion = "reduce"; } catch {}
 </script>
 <style>
 /* Layout: 왼쪽은 키워드를 넣는 '통'(한 통 또는 두 통), 오른쪽은 뽑힌 쪽지가 놓이는 '판'. 좁은 화면에선 위아래로 쌓임. */
@@ -230,7 +232,7 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 @container (max-width: 600px) {
   .controls { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px 8px; }
   .controls .spacer { display: none; }
-  .controls #opt-unique { grid-row: 2; grid-column: 1 / -1; justify-self: start; }
+  .controls .opts { grid-row: 2; grid-column: 1 / -1; justify-self: start; }
   .draw { justify-content: center; padding: 0 16px; }
   .controls .ghost { padding: 0 12px; }
 }
@@ -279,7 +281,8 @@ header.top p { margin: 0; color: var(--muted); max-width: 46ch; grid-column: 1 /
 .toggle[aria-pressed="true"] .sw { background: var(--accent); }
 .toggle[aria-pressed="true"] .sw::after { left: 14px; }
 .toggle small { color: var(--muted); font-size: 12px; }
-#opt-unique { padding: 5px 6px 5px 13px; }   /* 글자 왼쪽, 스위치 오른쪽 (덱 카드 스위치와 같은 순서) */
+.controls .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+#opt-unique, #opt-motion { padding: 5px 6px 5px 13px; }   /* 글자 왼쪽, 스위치 오른쪽 (덱 카드 스위치와 같은 순서) */
 
 .slips { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
 .slip {
@@ -381,11 +384,9 @@ textarea#memo::placeholder { color: var(--muted); }
 .toast { display: flex; align-items: center; gap: 12px; }
 .toast button { border: 0; background: none; padding: 2px 0; color: var(--mark); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
-@media (prefers-reduced-motion: reduce) {
-  .slip.landed { animation: none; }
-  .draw, .save-btn, .chip, .toggle .sw, .toggle .sw::after { transition: none; }
-  .draw, .save-btn { transform: none !important; }
-}
+/* 애니메이션 최소화 (헤더 스위치, 기본은 OS 설정을 따름) */
+:root[data-motion="reduce"] *, :root[data-motion="reduce"] ::before, :root[data-motion="reduce"] ::after { animation: none !important; transition: none !important; }
+:root[data-motion="reduce"] .draw, :root[data-motion="reduce"] .save-btn { transform: none !important; }
 </style>
 </head>
 <body>
@@ -430,7 +431,10 @@ textarea#memo::placeholder { color: var(--muted); }
     <section class="stage" aria-label="뽑기 결과">
       <div class="controls">
         <button class="draw" id="draw" type="button">뽑기 <kbd id="draw-key">Cmd+Enter</kbd></button>
-        <button class="toggle" id="opt-unique" type="button" aria-pressed="true">이미 나온 조합 제외<span class="sw"></span></button>
+        <span class="opts">
+          <button class="toggle" id="opt-unique" type="button" aria-pressed="true">이미 나온 조합 제외<span class="sw"></span></button>
+          <button class="toggle" id="opt-motion" type="button" aria-pressed="false">애니메이션 최소화<span class="sw"></span></button>
+        </span>
         <span class="spacer"></span>
         <button class="ghost" id="copy" type="button" disabled>결과 복사</button>
         <button class="ghost" id="share" type="button">링크 공유</button>
@@ -504,7 +508,8 @@ textarea#memo::placeholder { color: var(--muted); }
   ];
   const $ = id => document.getElementById(id);
   const slipsEl = $("slips"), memoEl = $("memo");
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // 애니메이션 최소화 여부는 <html data-motion>이 기준 (머리 스크립트·스위치가 정함)
+  const reduced = () => document.documentElement.dataset.motion === "reduce";
 
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem("kwdraw:" + k)); } catch { return null; } },
@@ -941,7 +946,7 @@ textarea#memo::placeholder { color: var(--muted); }
     const showSrc = new Set(current.map(c => c.from)).size > 1;
     const els = current.map((it, i) => {
       const el = slipEl(it, i, showSrc);
-      if (landed.includes(i) && !reduce) el.classList.add("landed");
+      if (landed.includes(i) && !reduced()) el.classList.add("landed");
       return el;
     });
     slipsEl.replaceChildren(...els);
@@ -1087,7 +1092,7 @@ textarea#memo::placeholder { color: var(--muted); }
       renderSlips(targets); renderHistory();
       if (exhausted) toast("아직 안 나온 조합을 찾지 못해 이미 나온 조합을 보여줘요");
     };
-    if (reduce) return finish();
+    if (reduced()) return finish();
 
     // 짧은 셔플 연출: 칸마다 시간차를 두고 멈춤
     spinning = true;
@@ -1173,7 +1178,7 @@ textarea#memo::placeholder { color: var(--muted); }
   }
 
   // 초기화: 기록과 테마만 남기고 저장값(덱, 지금 조합 포함)을 모두 지운 뒤, 주소의 공유 내용 없이 다시 엶
-  const KEEP = new Set(["kwdraw:history", "kwdraw:theme"]);
+  const KEEP = new Set(["kwdraw:history", "kwdraw:theme", "kwdraw:motion"]);
   $("reset-open").onclick = () => showPanel("reset-open", "reset-panel", $("reset-panel").hidden);
   $("reset-cancel").onclick = () => showPanel("reset-open", "reset-panel", false);
   $("reset-go").onclick = () => {
@@ -1208,6 +1213,15 @@ textarea#memo::placeholder { color: var(--muted); }
   document.querySelectorAll("#theme-seg button").forEach(b => b.onclick = () => {
     store.set("theme", b.dataset.themeChoice); applyTheme(b.dataset.themeChoice);
   });
+  // 애니메이션 최소화: 누르면 OS 설정과 상관없이 그 값으로 저장
+  function applyMotion() {
+    const m = store.get("motion");
+    const on = m === "reduce" || (m !== "full" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    if (on) document.documentElement.dataset.motion = "reduce"; else delete document.documentElement.dataset.motion;
+    $("opt-motion").setAttribute("aria-pressed", String(on));
+  }
+  applyMotion();
+  $("opt-motion").onclick = () => { store.set("motion", reduced() ? "full" : "reduce"); applyMotion(); };
   document.querySelectorAll("#filter-seg button").forEach(b => b.onclick = () => { filter = b.dataset.filter; showAll = false; renderHistory(); });
 
   $("copy").onclick = async () => {
