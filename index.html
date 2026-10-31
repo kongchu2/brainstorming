@@ -1058,9 +1058,8 @@ textarea#memo::placeholder { color: var(--muted); }
       for (const i of targets) {
         const from = out[i].from, prev = out[i].word;
         const pw = usable(getDeck(from)).filter(w => !taken.has(w));
-        // 바로 전에 나온 단어는 피함: 이 칸만 다시 뽑을 땐 그 칸 단어, 전체 뽑기 땐 그 덱에서 방금 나온 단어들
-        const avoid = full ? new Set(current.filter(c => c.from === from).map(c => c.word)) : new Set([prev]);
-        let cands = pw.filter(w => !avoid.has(w));
+        // '이것만 다시'는 그 칸에 있던 단어를 피함. 전체 뽑기는 모든 키워드가 같은 확률 (겹침은 '이미 나온 조합 제외'가 맡음)
+        let cands = pw.filter(w => w !== prev);
         if (!cands.length) cands = pw;
         const w = pickOne(cands) ?? prev;
         out[i] = { word: w, from, locked: false };
