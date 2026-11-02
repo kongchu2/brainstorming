@@ -14,8 +14,13 @@ export const usable = d => { const ex = new Set(d?.excluded ?? []); return deckW
 export const drawDecks = () => state.decks.filter(d => d.use && usable(d).length);
 // 뽑을 수 없는 이유: "off" 켠 덱이 없음 / "empty" 켠 덱에 뽑을 키워드가 없음 / null 뽑을 수 있음
 export const blocker = () => !state.decks.some(d => d.use) ? "off" : !drawDecks().length ? "empty" : null;
-// 그 덱에서 실제로 뽑을 장 수
-export const want = d => Math.min(Math.max(1, d.n), usable(d).length);
+// 장 수는 1~MAX_N (공유 링크의 dc가 너무 크거나 음수여도 이 안으로)
+export const MAX_N = 20;
+export const clampN = n => Math.min(MAX_N, Math.max(1, n | 0));
+// 장 수 버튼의 최대: 뽑을 키워드 수. 빈 덱은 키워드를 넣기 전에도 정해 둘 수 있게 MAX_N
+export const maxN = d => Math.min(MAX_N, usable(d).length || MAX_N);
+// 그 덱에서 실제로 뽑을 장 수. 뽑기·빈 쪽지·'이번에 N장'이 모두 이것만 씀 (뽑을 키워드가 없으면 0)
+export const want = d => Math.min(clampN(d.n), usable(d).length);
 // 덱 색은 순서대로 --c0 ~ --c4 반복
 export const deckColor = id => `var(--c${Math.max(0, state.decks.findIndex(d => d.id === id)) % 5})`;
 export const deckName = id => getDeck(id)?.name ?? "지운 덱";
@@ -48,17 +53,17 @@ export function toggleExcluded(d, w) {
 }
 
 // 새 덱: '새 덱 1'처럼 비어 있는 번호로, 켠 채로
-export function newDeck() {
+export function newDeck({ n = 1 } = {}) {
   let k = 1;
   while (state.decks.some(x => x.name === `새 덱 ${k}`)) k++;
-  const d = { id: newId(), name: `새 덱 ${k}`, text: "", excluded: [], use: true, n: 1 };
+  const d = { id: newId(), name: `새 덱 ${k}`, text: "", excluded: [], use: true, n };
   state.decks.push(d); saveDecks();
   return d;
 }
-// 덱 전부 삭제: 빈 덱 두 개('새 덱 1', '새 덱 2', 켠 채로)만 남김
+// 덱 전부 삭제: 빈 덱 하나('새 덱 1', 켠 채로, 2장)만 남김
 export function wipeDecks() {
   state.decks = [];
-  newDeck(); newDeck();
+  newDeck({ n: 2 });
 }
 export function deleteDeck(d) {
   if (state.decks.length <= 1) return;
@@ -77,7 +82,7 @@ export function loadDecks() {
   // 옮긴 관점 덱을 먼저 저장하고, 저장된 게 확인될 때만 예전 키를 지움
   if (old) store.set("decks", decks);
   if (!old || store.get("decks")?.some(d => d.id === "t")) { store.remove("twistDeck"); store.remove("twistOn"); }
-  for (const d of decks) { d.excluded ??= []; d.n = Math.max(1, d.n | 0); }
+  for (const d of decks) { d.excluded ??= []; d.n = clampN(d.n); }
   state.decks = decks;
 }
 

@@ -3,7 +3,7 @@
 import { state } from "./state.js";
 import { $, toast } from "./util.js";
 import {
-  saveDecks, deckWords, usable, drawDecks, want, deckColor, blocker,
+  saveDecks, deckWords, usable, drawDecks, want, maxN, deckColor, blocker,
   addWords, removeWord, toggleExcluded, newDeck, deleteDeck,
 } from "./decks.js";
 import { removeSlips } from "./entry.js";
@@ -12,6 +12,7 @@ import { render } from "./render.js";
 const listEl = $("deck-list");
 const bulkOpen = new Set();      // 한꺼번에 편집 칸을 펼친 덱
 let armedDel = null, armTimer;   // × 는 한 번 누르면 '삭제'로 바뀌고 3초 안에 한 번 더 눌러야 지워짐
+let armedClear = null, clearTimer;   // 비우기도 한 번 누르면 '확인'으로 바뀌고 3초 안에 한 번 더 눌러야 비워짐
 
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 const button = (props, label) => {
@@ -53,7 +54,6 @@ const countText = d => {
 function deckCard(d) {
   const li = el("li", { className: "deck-row" + (d.use ? " on" : " unused") + (d.use && d.fold ? " folded" : "") });
   li.style.setProperty("--dot", deckColor(d.id));
-  const ok = usable(d).length;
 
   // 접기 (켠 덱만. 끈 덱은 자리만 차지해서 이름 위치를 맞춤)
   const fold = button({ className: "deck-fold", textContent: "▼", disabled: !d.use },
@@ -73,8 +73,8 @@ function deckCard(d) {
   const title = el("div", { className: "deck-title" });
   title.append(fold, name, cnt);
 
-  // 장 수 − n장 +
-  const max = Math.max(1, ok), v = Math.min(d.n, max);
+  // 장 수 − n장 +. 최대는 뽑을 키워드 수, 빈 덱은 정해 둔 장 수를 그대로 보여 주고 늘릴 수도 있음 (덱 전부 삭제 뒤의 2장 등)
+  const max = maxN(d), v = Math.min(d.n, max);
   const stepBtn = (txt, delta, label) => {
     const b = button({ textContent: txt, disabled: !d.use || (delta < 0 ? v <= 1 : v >= max) }, `‘${d.name}’ ${label}`);
     b.dataset.fk = `${delta}-${d.id}`;
@@ -103,9 +103,11 @@ function deleteButton(d) {
   const del = button({ className: "deck-del" + (armed ? " armed" : ""), textContent: armed ? "삭제" : "×" },
     armed ? `한 번 더 누르면 ‘${d.name}’ 덱 삭제` : `‘${d.name}’ 덱 삭제`);
   del.dataset.fk = "del-" + d.id;
+  // 그릴 때의 armed가 아니라 누른 순간의 armedDel로 판단. 3초가 지났는데 누르고 있어서 다시 그리기가 미뤄지면
+  // 화면엔 아직 '삭제'가 보여도 지우지 않고 다시 확인 단계로
   del.onclick = () => {
     clearTimeout(armTimer);
-    if (armed) {
+    if (armedDel === d.id) {
       armedDel = null; deleteDeck(d); render(); toast(`‘${d.name}’ 덱을 지웠어요`);
     } else {
       armedDel = d.id;
@@ -150,10 +152,21 @@ function deckBody(d) {
     inc.onclick = () => { d.excluded = []; saveDecks(); render(); };
     right.append(inc);
   }
-  // 비우기: 덱 키워드를 다 지우고, 이 덱에서 나온 쪽지도 지금 조합에서 뺌
-  const clear = button({ className: "linkbtn", textContent: "비우기" });
+  // 비우기: 덱 키워드를 다 지우고, 이 덱에서 나온 쪽지도 지금 조합에서 뺌. 두 번 눌러야 비워짐
+  const armed = armedClear === d.id;
+  const clear = button({ className: "linkbtn danger-link clear-btn" + (armed ? " armed" : ""), textContent: armed ? "확인" : "비우기" },
+    armed ? `한 번 더 누르면 ‘${d.name}’ 덱 비우기` : `‘${d.name}’ 덱 비우기`);
+  clear.dataset.fk = "clear-" + d.id;
   clear.onclick = () => {
     if (state.spinning) return;
+    clearTimeout(clearTimer);
+    if (armedClear !== d.id) {   // × 삭제와 같이, 누른 순간의 상태로 판단
+      armedClear = d.id;
+      clearTimer = setTimeout(() => { armedClear = null; render(); }, 3000);
+      render();
+      return;
+    }
+    armedClear = null;
     d.text = ""; d.excluded = []; saveDecks();
     removeSlips(c => c.from === d.id);
     render();

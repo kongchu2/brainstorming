@@ -1,7 +1,7 @@
 // 오른쪽 결과 화면: 뽑기 줄 버튼, 쪽지, 이번 조합(메모·핀 고정)
 import { state } from "./state.js";
 import { $, toast, ICON_REROLL, ICON_PIN, reduced } from "./util.js";
-import { drawDecks, deckColor, deckName, blocker } from "./decks.js";
+import { drawDecks, deckColor, deckName, blocker, want } from "./decks.js";
 import { togglePin, setMemo, removeSlips, saveHistory } from "./entry.js";
 import { draw } from "./draw.js";
 import { render } from "./render.js";
@@ -19,17 +19,34 @@ export function renderControls() {
 // 쪽지를 지금 상태대로 다시 그림. landed: 방금 뽑혀 착지 효과를 줄 칸 번호
 export function buildSlips(landed = []) {
   const showSrc = new Set(state.current.map(c => c.from)).size > 1;   // 덱이 섞일 때만 덱 이름·색 점
-  slipsEl.replaceChildren(...state.current.map((item, i) => {
+  const slips = state.current.map((item, i) => {
     const s = slipEl(item, i, showSrc);
     if (landed.includes(i) && !reduced()) s.classList.add("landed");
     return s;
-  }));
-  $("empty-stage").hidden = state.current.length > 0;
+  });
+  // 쪽지가 없으면 다음 뽑기에 나올 장 수만큼 빈 쪽지를 깔아 둠 (덱 색·이름으로). 뽑을 수 없으면 대신 안내
+  const ph = state.current.length ? [] : placeholders();
+  slipsEl.replaceChildren(...slips, ...ph);
+  $("empty-stage").hidden = state.current.length > 0 || ph.length > 0;
   // 빈 화면 안내는 지금 상황에 맞게 (덱이 어디 있는지는 화면 폭마다 달라서 '왼쪽' 같은 말은 안 씀)
   $("empty-hint").textContent = {
     off: "뽑을 덱을 켜고 ‘뽑기’를 누르세요.",
     empty: "덱에 키워드를 넣고 ‘뽑기’를 누르세요.",
   }[blocker()] ?? "‘뽑기’를 누르면 켠 덱마다 쪽지가 나와요.";
+}
+
+function placeholders() {
+  const on = drawDecks();   // 뽑기와 같은 덱·같은 장 수(want). 빈 덱은 뽑기가 건너뛰니 빈 쪽지도 없음
+  const showSrc = on.length > 1;
+  return on.flatMap(d => Array.from({ length: want(d) }, () => {
+    const s = document.createElement("div");
+    s.className = "slip slip-ph";
+    s.setAttribute("aria-hidden", "true");
+    s.style.setProperty("--dot", deckColor(d.id));
+    s.innerHTML = `<div class="meta"><span class="${showSrc ? "src" : ""}"></span></div><div class="word">?</div><div class="acts"></div>`;
+    s.querySelector(".meta span").textContent = showSrc ? d.name : "";
+    return s;
+  }));
 }
 
 // 쪽지 한 장. innerHTML에는 고정 문자열만, 사용자가 쓴 글은 textContent로

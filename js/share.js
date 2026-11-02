@@ -2,7 +2,7 @@
 // 예전 형식 ?k=…&k2=…&p=2&n=…&n2=…&na=…&nb=…&d=…&d2=…와 예전 관점 카드 t=도 읽음
 import { state } from "./state.js";
 import { framed, newId } from "./util.js";
-import { getDeck, deckWords, saveDecks } from "./decks.js";
+import { getDeck, deckWords, saveDecks, clampN } from "./decks.js";
 
 const csv = s => (s ?? "").split(",").map(x => x.trim()).filter(Boolean);
 
@@ -21,10 +21,10 @@ export function readSharedLink() {
   let shared = [];
   if (params.getAll("dw").length) {
     const names = params.getAll("dn"), counts = params.getAll("dc");
-    shared = params.getAll("dw").map((w, i) => ({ name: names[i] || `덱 ${i + 1}`, words: csv(w), n: parseInt(counts[i], 10) || 1 }));
+    shared = params.getAll("dw").map((w, i) => ({ name: names[i] || `덱 ${i + 1}`, words: csv(w), n: clampN(parseInt(counts[i], 10) || 1) }));
   } else if (params.get("k")) {   // 예전 형식
-    shared.push({ name: params.get("na") || "키워드", words: csv(params.get("k")), n: parseInt(params.get("n"), 10) || 2 });
-    if (params.get("p") === "2" && params.get("k2")) shared.push({ name: params.get("nb") || "방식", words: csv(params.get("k2")), n: parseInt(params.get("n2"), 10) || 1 });
+    shared.push({ name: params.get("na") || "키워드", words: csv(params.get("k")), n: clampN(parseInt(params.get("n"), 10) || 2) });
+    if (params.get("p") === "2" && params.get("k2")) shared.push({ name: params.get("nb") || "방식", words: csv(params.get("k2")), n: clampN(parseInt(params.get("n2"), 10) || 1) });
   }
   shared = shared.filter(s => s.words.length);
   if (!shared.length) return null;
