@@ -59,6 +59,22 @@ $("share").onclick = async () => {
   } catch { toast("주소창의 링크를 복사해 공유하세요"); }
 };
 
+// ── 좁은 화면(820px 이하): 보이는 순서대로 DOM도 옮겨 Tab 순서를 맞춤 ──
+// CSS order는 보이는 순서만 바꾸고 키보드 초점은 DOM 순서를 따름. 넓은 화면으로 돌아가면 표시해 둔 원래 자리로
+const narrow = matchMedia("(max-width: 820px)");
+const stageEl = document.querySelector(".grid > .stage");
+const flow = [$("slips"), $("empty-stage"), $("draw"), document.querySelector(".result-actions"), $("reset-panel"), $("wipe-panel"),
+  document.querySelector(".opts"), document.querySelector(".pools"), $("combo"), $("history")];
+const homes = flow.map(n => { const mark = document.createComment(""); n.before(mark); return mark; });
+function placeFlow() {
+  const act = document.activeElement;
+  if (narrow.matches) stageEl.append(...flow);
+  else flow.forEach((n, i) => homes[i].after(n));
+  if (act && act !== document.activeElement) act.focus({ preventScroll: true });   // 옮기면 초점이 풀리는 브라우저가 있음
+}
+placeFlow();
+if (narrow.addEventListener) narrow.addEventListener("change", placeFlow); else narrow.addListener?.(placeFlow);
+
 // 애니메이션 최소화: 저장값이 없으면 OS 설정을 따름. 고른 값이 OS 설정과 같으면 저장값을 지워 다시 OS를 따르게.
 // 판단은 머리 스크립트의 window.kwdrawMotion 한 곳에서
 let motionChoice = store.get("motion");
@@ -104,7 +120,7 @@ $("reset-go").onclick = () => {
   try { Object.keys(localStorage).filter(k => k.startsWith("kwdraw:") && !KEEP.has(k)).forEach(k => localStorage.removeItem(k)); } catch {}
   if (framed) location.reload(); else location.replace(location.pathname);
 };
-// 덱 전부 삭제: 빈 덱 두 개로. 지금 쪽지는 덱이 없어지니 기록으로 넘기고 비움
+// 덱 전부 삭제: 빈 덱 하나(2장)로. 지금 쪽지는 덱이 없어지니 기록으로 넘기고 비움
 $("wipe-go").onclick = () => {
   if (state.spinning) return;
   removeSlips(() => true);
